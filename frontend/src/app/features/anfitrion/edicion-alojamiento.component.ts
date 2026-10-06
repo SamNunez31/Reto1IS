@@ -147,6 +147,8 @@ type SeccionForm = keyof typeof CAMPOS;
   `,
 })
 export class EdicionAlojamientoComponent implements OnInit, ConCambiosSinGuardar {
+  // El alias es el nombre del parámetro de ruta (:codigo); `codigo` ya es la señal numérica del componente
+  // eslint-disable-next-line @angular-eslint/no-input-rename
   readonly codigoRuta = input<string>('', { alias: 'codigo' });
   private readonly api = inject(AnfitrionService);
   private readonly ruta = inject(ActivatedRoute);

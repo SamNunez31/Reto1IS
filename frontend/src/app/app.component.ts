@@ -11,6 +11,8 @@ import { ConfirmarComponent, ConfirmarService } from './shared/confirmar';
     <header class="barra">
       <a routerLink="/" class="marca" aria-label="Posada EC, inicio">Posada<span>EC</span></a>
       <button class="menu-btn" type="button" (click)="menu.set(!menu())" [attr.aria-expanded]="menu()" aria-controls="nav">Menú</button>
+      <!-- Clic en un enlace del menú móvil lo cierra; los enlaces ya son accesibles con teclado -->
+      <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
       <nav id="nav" [class.abierto]="menu()" (click)="menu.set(false)" aria-label="Principal">
         <a routerLink="/" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">Buscar</a>
         @if (auth.usuario(); as u) {

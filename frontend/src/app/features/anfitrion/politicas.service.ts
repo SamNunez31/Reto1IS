@@ -4,7 +4,7 @@ import { catchError, map, Observable, of, shareReplay } from 'rxjs';
 import { DetalleAlojamiento, PoliticaCancelacion } from '../../core/models/api.models';
 import { API } from '../../core/services/api-base';
 
-export type Tramo = { hours_before: number; penalty_percent: number };
+export interface Tramo { hours_before: number; penalty_percent: number }
 
 /**
  * Tramos REALES de cada política (horas de anticipación → % de penalidad), tal como los aplica la BD

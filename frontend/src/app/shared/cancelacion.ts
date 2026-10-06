@@ -7,7 +7,7 @@
  * El porcentaje es sobre el hospedaje (subtotal de alojamiento), no sobre limpieza ni impuestos.
  */
 
-export type ReglaCancelacion = { hours_before: number; penalty_percent: number };
+export interface ReglaCancelacion { hours_before: number; penalty_percent: number }
 
 /** Hora de check-in por defecto de la BD (alojamiento.hora_checkin DEFAULT '14:00'), solo si el API no la trae. */
 export const HORA_CHECKIN_DEFECTO = '14:00';

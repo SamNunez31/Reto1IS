@@ -42,6 +42,8 @@ export class ConfirmarService {
 @Component({
   selector: 'app-confirmar',
   template: `
+    <!-- Clic en el fondo = Cancelar; con teclado se cancela con Esc (evento cancel del <dialog>) -->
+    <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events -->
     <dialog #dialogo class="dialogo" role="alertdialog" aria-modal="true" aria-labelledby="conf-titulo" aria-describedby="conf-mensaje"
             (cancel)="$event.preventDefault(); svc.responder(false)" (click)="clicFondo($event)">
       @if (svc.actual(); as c) {

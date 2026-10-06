@@ -1,9 +1,8 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { AbstractControl, FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { AbstractControl, ReactiveFormsModule } from '@angular/forms';
 import { CatalogoService } from '../../core/services/catalogo.service';
 import { CampoMensajeComponent, conError } from '../../shared/campo';
-import { ConfirmarService } from '../../shared/confirmar';
 import { FiltroDirective } from '../../shared/entrada';
 import { TelefonoDirective } from '../../shared/telefono.directive';
 import { PISTA_TELEFONO } from '../../shared/validadores';

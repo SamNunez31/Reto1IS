@@ -1,4 +1,4 @@
-import { FormArray, FormBuilder, FormGroup, ValidatorFn, Validators } from '@angular/forms';
+import { FormBuilder, ValidatorFn } from '@angular/forms';
 import { DatosAlojamiento } from '../../core/services/anfitrion.service';
 import { vSinRepeticiones } from '../../shared/texto-libre';
 import { normalizarTelefono, vElegir, vLongitud, vMaximo, vRango, vTelefono } from '../../shared/validadores';

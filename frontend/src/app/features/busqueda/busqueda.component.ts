@@ -76,6 +76,8 @@ export function motivoBusqueda(
           <button class="campo-boton" type="button" aria-labelledby="et-huespedes" aria-controls="panel-huespedes"
                   [attr.aria-expanded]="panelHuespedes()" (click)="panelHuespedes.set(!panelHuespedes())">{{ resumenHuespedes() }}</button>
           @if (panelHuespedes()) {
+            <!-- Esc desde cualquier campo del panel lo cierra (el evento sube desde los inputs) -->
+            <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -->
             <div class="panel-huespedes" id="panel-huespedes" (keydown.escape)="panelHuespedes.set(false)">
               <label>Adultos <input appFiltro="entero" formControlName="adultos" maxlength="2" /></label>
               <label>Niños <input appFiltro="entero" formControlName="ninos" maxlength="2" /></label>
