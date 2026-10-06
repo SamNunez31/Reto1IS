@@ -242,7 +242,8 @@ Solo reseña el **huésped** de una reserva **COMPLETADA**, una vez por reserva 
 - Un solo idioma (`es`), una moneda (`USD`), un país (`ec`); sin cadenas hoteleras ni planes de comida.
 - Rate limit en memoria (por instancia); con varias instancias habría que usar Redis.
 - El plan gratuito de Supabase se pausa por inactividad y el de Render "duerme": la primera petición tarda.
-- Las pruebas automáticas son pocas: el test del shell de Angular, las de observabilidad y las agregaciones del dashboard (`ng test`, 14), más los scripts de prueba del API; no hay contract testing avanzado (Reto 2).
+- Las pruebas automáticas son pocas: 37 en el frontend (`ng test`) y 9 en el backend (`npm test`, lógica pura sin BD), más los scripts de prueba del API; el precio y el reembolso (funciones SQL) no tienen prueba unitaria y no hay contract testing avanzado (Reto 2). Ver §17.
+- *Eliminar* alojamiento (Administración) usa el estado SUSPENDIDO que ya existía: sale de las búsquedas y conserva su historial. Un borrado real o un estado "archivado" requeriría cambiar el contrato.
 - La observabilidad del frontend es **local de cada navegador** (ver §14); no hay agregación central de métricas del cliente.
 
 ## 11. Despliegue
@@ -354,3 +355,95 @@ Gráficos propios en SVG/CSS (sin librerías nuevas), de una sola serie con el c
 **Cómo probarlo:** entrar como admin → Observabilidad; hacer clics por el sitio; en la consola del navegador ejecutar `setTimeout(() => { throw new Error('prueba') })` (aparece como "Error JS"); pulsar *Actualizar*, *Descargar snapshot JSON* y *Limpiar datos*. Pruebas automáticas: `npm test` en `frontend/` (no guarda valores de campos ni tarjetas, límite de 300, rutas con patrón, p95, tolerancia a `localStorage` caído, interceptor sin cuerpos ni cabeceras).
 
 **Limitación:** solo mide **el navegador local** de quien lo abre; no hay vista agregada de todos los usuarios. Del lado del servidor ya existen logs JSON con `X-Correlation-Id`, auditoría de accesos y `/health` (§5). **Evolución:** trazas y métricas del servidor con OpenTelemetry (exportador OTLP) y Prometheus/Grafana, y, si se quisiera agregar datos del cliente, un endpoint de ingesta con consentimiento y muestreo.
+
+## 15. SOA, ESB y mensajería (semana 5)
+
+> **Qué está implementado y qué es diseño.** Implementado hoy: tabla `evento_outbox` llenada por triggers en la misma transacción que el cambio, job publicador cada 5 s (`publicar-outbox`, `FOR UPDATE SKIP LOCKED`, marca `publicado_en` solo después de publicar), bus **en memoria** (`backend/src/modules/jobs/bus-eventos.ts`) con un consumidor de auditoría idempotente, `correlacion_id` + `GET /orders/{id}/timeline`, y filas en `webhook_entrega`. **Diseño (no desplegado):** el broker, el exchange `posada.eventos`, las colas por consumidor, las DLQ y los consumidores fuera del proceso.
+
+**Operaciones como servicios.** Cada capacidad del dominio se expone como una operación con contrato propio (REST, `/api/v1`), sin que el cliente conozca la BD:
+
+| Servicio | Operaciones (contrato) | Dueño de los datos |
+|---|---|---|
+| Catálogo | `search`, `details`, `availability`, `reviews`, `reviews/scores`, `constants` | alojamiento, unidad, calendario, reseña |
+| Órdenes | `orders/preview`, `orders/create`, `orders/{id}`, `modify`, `cancel`, `cancel-preview` | reserva, pago, cancelación |
+| Facturación | `orders/{id}/invoice` (la emite `fn_crear_orden`, se anula al cancelar) | factura |
+| Cuenta | `auth/*`, `me/*`, `me/orders` | usuario |
+| Operación (admin) | `host/*` (catálogo, reservas, cobro en efectivo, reseñas), `admin/*` (estados, catálogos, impuestos, eventos, jobs) | — |
+
+**ESB / API Gateway.** En una SOA clásica un ESB enruta, transforma, asegura y orquesta. En este prototipo ese papel lo cumple el **backend NestJS** como punto de entrada único (estilo *API Gateway*, "endpoints inteligentes, tuberías simples"): autenticación JWT con scopes y roles, validación de DTO, rate limit, `X-Correlation-Id`, `Idempotency-Key` + reproducción de respuestas, traducción de errores a ProblemDetails y del contrato (`snake_case`, ids opacos) al modelo de la BD. No hay orquestación pesada en un bus: la lógica transaccional vive en funciones de la BD y la integración asíncrona sale por eventos.
+
+**Diseño de mensajería con un exchange tipo *topic*.** El publicador del outbox dejaría de llamar al bus en memoria y publicaría en el exchange `posada.eventos` (durable). La *routing key* se deriva del `tipo` del evento:
+
+| Evento (outbox) | Routing key |
+|---|---|
+| `ReservaCreada` / `ReservaModificada` / `ReservaCancelada` | `reserva.creada` / `reserva.modificada` / `reserva.cancelada` |
+| `PagoRegistrado` / `ReembolsoRegistrado` | `pago.registrado` / `pago.reembolsado` |
+| `FacturaEmitida` / `FacturaAnulada` | `factura.emitida` / `factura.anulada` |
+| `EstanciaCompletada`, `ResenaPublicada` | `estancia.completada`, `resena.publicada` |
+| `AlojamientoPublicado` / `AlojamientoSuspendido` | `alojamiento.publicado` / `alojamiento.suspendido` |
+
+**Una cola por consumidor** (cada uno recibe su copia y avanza a su ritmo):
+
+| Cola | Binding | Para qué |
+|---|---|---|
+| `q.auditoria` | `#` | lo que hoy hace `AuditoriaConsumidor` |
+| `q.webhooks` | `reserva.creada`, `reserva.cancelada` | entregar `ORDER_CONFIRMED` / `ORDER_CANCELLED` (hoy solo se crean filas en `webhook_entrega`) |
+| `q.notificaciones` | `reserva.*`, `pago.*` | correos/avisos al huésped (hoy no se envían correos) |
+| `q.facturacion-sri` | `factura.*` | autorización electrónica real (hoy la factura es simulada) |
+| `q.analitica` | `#` | alimentar el dashboard sin consultar las tablas transaccionales |
+
+**Mapeo con el outbox.** Cada mensaje lleva `message_id = evento_outbox.id`, `correlation_id = correlacion_id`, `type = tipo` y el `payload` como cuerpo JSON. El publicador usa *publisher confirms*: solo cuando el broker confirma se marca `publicado_en`; si el proceso cae antes, el evento se vuelve a publicar (entrega **al menos una vez**).
+
+**Idempotencia y DLQ.** Como puede haber duplicados, cada consumidor guarda `(consumidor, evento_id)` como clave única antes de actuar (hoy el consumidor de auditoría lo hace en memoria con un `Set`; en producción sería una tabla). Cada cola declara un *dead-letter exchange* `posada.eventos.dlx`: tras N reintentos con espera creciente, el mensaje va a `q.<consumidor>.dlq` para revisión manual y reproceso, sin bloquear la cola principal. El orden entre eventos de una misma reserva se conserva publicando en orden de `id` (y, en Kafka, usando `correlacion_id` como clave de partición).
+
+**RabbitMQ vs Kafka.** RabbitMQ encaja mejor con este volumen y este patrón: enrutamiento por *topic*, una cola por consumidor, ack por mensaje, DLQ y reintentos nativos. Kafka conviene cuando se necesita retener el log y **reproducirlo** (rehacer proyecciones, analítica), con alto volumen y orden por partición, a cambio de más operación (particiones, retención, grupos de consumo).
+
+**Por qué no se despliega hoy.** El prototipo corre en planes gratuitos (Render + Supabase) sin broker administrado, en un solo proceso y sin consumidores externos todavía. El outbox ya garantiza que ningún evento se pierda (si el bus en memoria falla, `publicado_en` queda nulo y se reintenta), así que añadir un broker sumaría costo y operación sin un consumidor que lo necesite. Pasar a RabbitMQ solo cambia el publicador (los productores, que son los triggers, no cambian); es trabajo del Reto 2 junto con la entrega real de webhooks.
+
+## 16. Guía de usuario
+
+**Huésped**
+
+1. **Buscar:** en el inicio elige destino (provincia y ciudad), fechas y huéspedes (adultos, niños, habitaciones); "Más filtros" agrega tipo, estrellas mínimas, precio máximo y orden. Los resultados muestran el precio "desde" por noche.
+2. **Ver el alojamiento:** fotos, descripción, comodidades, política de cancelación con sus tramos, horarios y reseñas. La tarjeta lateral recalcula el precio al cambiar fechas o huéspedes y explica por qué un tipo de habitación no está disponible.
+3. **Reservar:** "Reservar" pide iniciar sesión (o crear cuenta). El precio queda garantizado 15 minutos.
+4. **Datos de la factura:** Cédula, RUC, Pasaporte o Consumidor final. No se guardan en el perfil.
+5. **Pagar:** con **tarjeta** (simulada; los datos no salen del navegador; con `?demo=1` se ven tarjetas de prueba para aprobar o rechazar) o en **efectivo** al llegar (la reserva queda confirmada y el pago pendiente). El resumen muestra la política con fechas concretas ("gratis hasta el …").
+6. **Confirmación:** muestra el **código de reserva** (`BK-…`), que se puede copiar.
+7. **Mis reservas:** pestañas Próximas, Completadas y Canceladas. En cada viaje: *Ver detalle* (historial de eventos), *Cambiar fechas*, *Factura* y *Cancelar*. Antes de cancelar se ve la penalidad y el reembolso calculados; con efectivo no pagado no hay cobro ni reembolso. Después de la estadía aparece *Calificar*.
+8. **Perfil:** nombre y teléfono, con *Guardar* y *Cancelar*. *Salir* pide confirmación.
+
+**Anfitrión y administrador.** En este prototipo no hay portal de anfitrión (las rutas `/anfitrion/...` muestran un aviso): el **administrador** opera el catálogo de Posada EC desde *Administración*:
+
+- **Dashboard:** indicadores, ventas por mes, mapa de alojamientos y rankings.
+- **Alojamientos:** filtrar y buscar; *+ Nuevo alojamiento* abre un asistente por pasos que guarda un borrador; *Editar* abre la edición por secciones (información, ubicación, reglas y política, habitaciones y precios, precios por fecha opcionales, fotos), cada una con *Guardar cambios* y *Descartar cambios*; *Publicar* / *Despublicar*, *Suspender* / *Reactivar* y *Eliminar* (pide confirmación y se bloquea si hay reservas activas; internamente usa la suspensión, ver §10).
+- **Reservas:** filtrar por estado y pago; *Confirmar pago recibido* para las reservas en efectivo.
+- **Reseñas:** responder una vez cada reseña.
+- **Usuarios:** activar o desactivar cuentas.
+- **Catálogos:** amenidades y ciudades. **Impuestos y feriados:** registrar tarifas con vigencia y cerrarlas.
+- **Eventos**, **Jobs** (ejecutar a mano) y **Observabilidad** (también pública en `/observabilidad`).
+
+## 17. Calidad de código
+
+| Proyecto | Herramienta | Comando | Resultado (2026-10-06) |
+|---|---|---|---|
+| Frontend | ESLint (`angular-eslint` 19, configuración por defecto + plantillas accesibles) | `cd frontend && npm run lint` | All files pass linting |
+| Frontend | Karma + Jasmine | `cd frontend && npx ng test --watch=false --browsers=ChromeHeadless` | 37 pruebas, 37 OK |
+| Frontend | Compilación | `cd frontend && npm run build` | OK |
+| Backend | ESLint 9 (flat config, `typescript-eslint` recomendado), sin `--fix` | `cd backend && npm run lint` | 0 problemas |
+| Backend | Jest + ts-jest | `cd backend && npm test` | 3 suites, 9 pruebas OK |
+| Backend | Compilación | `cd backend && npm run build` | OK |
+
+- **Qué cubren las pruebas.** Frontend: validadores de formularios (teléfono, tarjeta, CVV, nombres, precios), la directiva que filtra la escritura, la política de cancelación con fechas, la búsqueda, las agregaciones del dashboard y la observabilidad. Backend: `IdempotencyKeyGuard` (UUID válido, ausente o mal formado), cédula/RUC y saneo de texto libre, cursor de paginación y conteo de noches.
+- **Qué no cubren.** El precio (hospedaje, servicio, IVA) y el reembolso por política se calculan en la BD (`fn_cotizar`, `v_cancelacion_liquidacion`); no son aislables sin BD y no tienen prueba unitaria. Se verificaron con los scripts SQL y pruebas manuales del API.
+- **Excepciones de lint, documentadas en el código.** Frontend: cuatro avisos de accesibilidad de plantilla en patrones con alternativa de teclado (clic en el fondo del diálogo = Esc, cierre del menú móvil, Esc en el panel de huéspedes) y el alias del parámetro de ruta `:codigo`. Backend: `no-control-regex` en el saneo de texto (quitar caracteres de control es su propósito) y variables descartadas con prefijo `_`.
+
+## 18. Reflexión final
+
+**Decisiones.** (1) *API-first*: el contrato YAML se respetó y las extensiones (datos de factura, pago en efectivo) son opcionales, comprobadas con `contract:check`. (2) La **lógica crítica en la BD** (precio, cupo con `FOR UPDATE`, máquina de estados, penalidades, eventos) para que la consistencia no dependa de la aplicación. (3) Un **monolito modular** en NestJS en vez de microservicios, por el tamaño del equipo y los planes gratuitos. (4) **Outbox transaccional** desde el inicio, aunque el bus sea en memoria. (5) Pagos y facturas **simulados**, sin que los datos de tarjeta salgan del navegador.
+
+**Aprendizajes.** Poner reglas en la BD evita inconsistencias, pero vuelve más difícil probarlas de forma aislada y obliga a repetir validaciones en el frontend para dar mensajes claros (el backend sigue siendo la fuente de verdad). El outbox separa "qué pasó" de "quién se entera", lo que hace barato cambiar luego el transporte. Mantener el contrato estable mientras el producto cambia exigió diseñar las extensiones como campos opcionales.
+
+**Limitaciones** (detalle en §10). Sin pasarela de pago ni SRI reales; sin broker ni entrega real de webhooks; rate limit y deduplicación del consumidor en memoria; pocas pruebas automáticas del backend y ninguna de las funciones SQL de precio y reembolso; no hay portal de anfitrión; *Eliminar* alojamiento es una suspensión, porque un borrado real (o un estado "archivado") requeriría cambiar el contrato.
+
+**Evolución a microservicios** (§6). Separar por dueño de datos: Catálogo, Órdenes, Facturación, Cuenta y Notificaciones, cada uno con su BD; las vistas cruzadas se convierten en proyecciones alimentadas por eventos; el publicador del outbox pasa a RabbitMQ (§15) y el backend actual queda como API Gateway. Lo primero a extraer serían Notificaciones y Webhooks, porque ya solo dependen de eventos.
