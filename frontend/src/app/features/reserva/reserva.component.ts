@@ -114,9 +114,6 @@ const vCorreo: ValidatorFn = (c) => (tipoDe(c) === 'CONSUMIDOR_FINAL' ? null : v
                 <p class="nota">La factura se emitirá a <strong>consumidor final</strong>; no necesitas ingresar más datos.</p>
               }
               <button class="btn btn-primario" type="submit" [disabled]="factura.invalid">Continuar al pago</button>
-              @if (factura.invalid) {
-                <p class="ayuda">Completa los datos de la factura para continuar. <button type="button" class="btn-enlace" (click)="continuarAPago()">Ver qué falta</button></p>
-              }
             </form>
           }
 
@@ -206,9 +203,6 @@ const vCorreo: ValidatorFn = (c) => (tipoDe(c) === 'CONSUMIDOR_FINAL' ? null : v
               <button class="btn btn-primario btn-pagar" type="submit" [disabled]="procesando() || vencido() || tarjeta.invalid">
                 {{ procesando() ? 'Procesando pago…' : 'Pagar ' + (total() | currency: 'USD') }}
               </button>
-              @if (tarjeta.invalid && !procesando()) {
-                <p class="ayuda">Completa los datos de la tarjeta para pagar. <button type="button" class="btn-enlace" (click)="pagar()">Ver qué falta</button></p>
-              }
               <p class="pago-seguro"><span aria-hidden="true">🔒</span> Pago seguro</p>
               <div aria-live="polite">@if (procesando()) { <app-cargando texto="Procesando tu pago…" /> }</div>
               @if (vencido()) {

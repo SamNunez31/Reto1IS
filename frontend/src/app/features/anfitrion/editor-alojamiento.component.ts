@@ -154,9 +154,6 @@ const PASO_UNIDADES = 5;
           <button class="btn btn-primario" type="submit" [disabled]="guardando() || !todoValido()">{{ guardando() ? 'Guardando…' : 'Crear borrador' }}</button>
         }
       </footer>
-      @if (paso() < pasos.length - 1 ? !pasoValido(paso()) : !todoValido()) {
-        <p class="ayuda">Completa los campos de este paso para continuar. <button type="button" class="btn-enlace" (click)="paso() < pasos.length - 1 ? siguiente() : guardar()">Ver qué falta</button></p>
-      }
     </form>
   `,
 })

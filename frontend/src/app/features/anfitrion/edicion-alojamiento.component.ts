@@ -85,7 +85,6 @@ type SeccionForm = keyof typeof CAMPOS;
               <button type="button" class="btn" (click)="descartar('basica')" [disabled]="guardando() === 'basica' || !pendiente('basica')">Descartar cambios</button>
               <span class="estado-seccion" [class.pendiente]="pendiente('basica')" [class.guardado]="estadoSeccion('basica') === 'Guardado'" role="status">{{ estadoSeccion('basica') }}</span>
             </footer>
-            @if (pendiente('basica') && seccionInvalida('basica')) { <p class="ayuda">Corrige los campos marcados para poder guardar. <button type="button" class="btn-enlace" (click)="guardar('basica')">Ver qué falta</button></p> }
             @if (errores()['basica']; as e) { <p class="aviso-guardado error" role="alert">✗ {{ e }}</p> }
           </section>
 
@@ -98,7 +97,6 @@ type SeccionForm = keyof typeof CAMPOS;
               <button type="button" class="btn" (click)="descartar('ubicacion')" [disabled]="guardando() === 'ubicacion' || !pendiente('ubicacion')">Descartar cambios</button>
               <span class="estado-seccion" [class.pendiente]="pendiente('ubicacion')" [class.guardado]="estadoSeccion('ubicacion') === 'Guardado'" role="status">{{ estadoSeccion('ubicacion') }}</span>
             </footer>
-            @if (pendiente('ubicacion') && seccionInvalida('ubicacion')) { <p class="ayuda">Corrige los campos marcados para poder guardar. <button type="button" class="btn-enlace" (click)="guardar('ubicacion')">Ver qué falta</button></p> }
             @if (errores()['ubicacion']; as e) { <p class="aviso-guardado error" role="alert">✗ {{ e }}</p> }
           </section>
 
@@ -112,7 +110,6 @@ type SeccionForm = keyof typeof CAMPOS;
               <button type="button" class="btn" (click)="descartar('reglas')" [disabled]="guardando() === 'reglas' || !pendiente('reglas')">Descartar cambios</button>
               <span class="estado-seccion" [class.pendiente]="pendiente('reglas')" [class.guardado]="estadoSeccion('reglas') === 'Guardado'" role="status">{{ estadoSeccion('reglas') }}</span>
             </footer>
-            @if (pendiente('reglas') && seccionInvalida('reglas')) { <p class="ayuda">Corrige los campos marcados para poder guardar. <button type="button" class="btn-enlace" (click)="guardar('reglas')">Ver qué falta</button></p> }
             @if (errores()['reglas']; as e) { <p class="aviso-guardado error" role="alert">✗ {{ e }}</p> }
           </section>
 
@@ -138,7 +135,6 @@ type SeccionForm = keyof typeof CAMPOS;
               <button type="button" class="btn" (click)="descartar('fotos')" [disabled]="guardando() === 'fotos' || !pendiente('fotos')">Descartar cambios</button>
               <span class="estado-seccion" [class.pendiente]="pendiente('fotos')" [class.guardado]="estadoSeccion('fotos') === 'Guardado'" role="status">{{ estadoSeccion('fotos') }}</span>
             </footer>
-            @if (pendiente('fotos') && seccionInvalida('fotos')) { <p class="ayuda">Corrige los campos marcados para poder guardar. <button type="button" class="btn-enlace" (click)="guardar('fotos')">Ver qué falta</button></p> }
             @if (errores()['fotos']; as e) { <p class="aviso-guardado error" role="alert">✗ {{ e }}</p> }
           </section>
         </div>
