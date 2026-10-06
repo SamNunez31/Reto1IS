@@ -1368,7 +1368,7 @@
     "/api/v1/host/orders": {
       "get": {
         "operationId": "HostController_reservas",
-        "summary": "Reservas y solicitudes de mis alojamientos",
+        "summary": "Reservas de los alojamientos del catálogo",
         "parameters": [
           {
             "name": "estado",
@@ -1382,6 +1382,19 @@
                 "RECHAZADA",
                 "EXPIRADA",
                 "COMPLETADA"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "estado_pago",
+            "required": false,
+            "in": "query",
+            "description": "PENDIENTE = pago en efectivo aún no recibido; APROBADO = cobrado",
+            "schema": {
+              "enum": [
+                "PENDIENTE",
+                "APROBADO"
               ],
               "type": "string"
             }
@@ -1423,10 +1436,10 @@
         ]
       }
     },
-    "/api/v1/host/orders/{id}/respond": {
-      "post": {
-        "operationId": "HostController_responder",
-        "summary": "Aceptar o rechazar una solicitud (fn_responder_solicitud)",
+    "/api/v1/host/orders/{id}": {
+      "get": {
+        "operationId": "HostController_reserva",
+        "summary": "Detalle de una reserva (incluye método y estado del pago)",
         "parameters": [
           {
             "name": "id",
@@ -1437,19 +1450,42 @@
             }
           }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResponderSolicitudDto"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": ""
+          }
+        },
+        "tags": [
+          "Catálogo (ADMIN)"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/host/orders/{id}/confirm-payment": {
+      "post": {
+        "operationId": "HostController_confirmarPago",
+        "summary": "Confirmar que se recibió el pago en efectivo",
+        "description": "Marca como APROBADO el pago PENDIENTE en efectivo de la reserva. Idempotente: si ya estaba confirmado responde 200 con ya_confirmado=true. 409 si la reserva no se paga en efectivo o está cancelada. Queda registrado en la auditoría.",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "409": {
+            "description": "La reserva no tiene un pago en efectivo que confirmar"
           }
         },
         "tags": [
@@ -1799,7 +1835,7 @@
     "/api/v1/admin/catalogs": {
       "get": {
         "operationId": "AdminController_catalogos",
-        "summary": "Catálogos: tipos, amenidades, políticas, ciudades, aeropuertos",
+        "summary": "Catálogos: tipos, amenidades, políticas, ciudades",
         "parameters": [],
         "responses": {
           "200": {
@@ -1827,36 +1863,6 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AmenidadDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Administración"
-        ],
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/admin/catalogs/types": {
-      "post": {
-        "operationId": "AdminController_tipo",
-        "summary": "Agregar tipo de alojamiento",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TipoAlojamientoDto"
               }
             }
           }
@@ -1906,36 +1912,6 @@
         ]
       }
     },
-    "/api/v1/admin/catalogs/airports": {
-      "post": {
-        "operationId": "AdminController_aeropuerto",
-        "summary": "Agregar aeropuerto",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AeropuertoDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Administración"
-        ],
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
     "/api/v1/admin/taxes": {
       "get": {
         "operationId": "AdminController_impuestos",
@@ -1957,7 +1933,7 @@
       },
       "post": {
         "operationId": "AdminController_crearImpuesto",
-        "summary": "Registrar tarifa (p. ej. feriado con IVA 8% que requiere registro de turismo)",
+        "summary": "Registrar tarifa (p. ej. feriado con IVA reducido: aplica a todos los alojamientos en esas fechas)",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -2077,7 +2053,7 @@
     "/api/v1/admin/jobs/{nombre}/ejecutar": {
       "post": {
         "operationId": "AdminController_ejecutar",
-        "summary": "Ejecutar un job: expirar-solicitudes, completar-estancias, publicar-outbox, purgar-idempotencia",
+        "summary": "Ejecutar un job: completar-estancias, publicar-outbox, purgar-idempotencia",
         "parameters": [
           {
             "name": "nombre",
@@ -2434,17 +2410,6 @@
             "minLength": 3,
             "maxLength": 40
           },
-          "airport": {
-            "type": "string",
-            "description": "Extensión: código IATA del aeropuerto cercano",
-            "pattern": "/^[A-Z]{3}$/"
-          },
-          "max_airport_km": {
-            "type": "number",
-            "description": "Extensión: distancia máxima al aeropuerto en km",
-            "minimum": 0,
-            "maximum": 1000
-          },
           "accommodation_type": {
             "type": "number",
             "description": "Extensión: id de tipo de alojamiento",
@@ -2468,8 +2433,7 @@
               "relevancia",
               "precio_asc",
               "precio_desc",
-              "calificacion",
-              "distancia"
+              "calificacion"
             ]
           },
           "currency": {
@@ -2933,33 +2897,6 @@
           "reviews"
         ]
       },
-      "Aeropuerto": {
-        "type": "object",
-        "properties": {
-          "iata": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "distance_km": {
-            "type": "number"
-          },
-          "time_min": {
-            "type": "number"
-          },
-          "transfer": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "iata",
-          "name",
-          "distance_km",
-          "time_min",
-          "transfer"
-        ]
-      },
       "Facilidad": {
         "type": "object",
         "properties": {
@@ -3125,12 +3062,6 @@
           "currency": {
             "type": "string"
           },
-          "airports": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Aeropuerto"
-            }
-          },
           "description": {
             "type": "string"
           },
@@ -3177,8 +3108,7 @@
           "city",
           "location",
           "rating",
-          "currency",
-          "airports"
+          "currency"
         ]
       },
       "AccommodationDetailsResponse": {
@@ -3350,7 +3280,7 @@
         "type": "object",
         "properties": {
           "constants": {
-            "description": "accommodation_types, facilities, cancellation_policies, provinces, cities, airports, booking_statuses",
+            "description": "accommodation_types, facilities, cancellation_policies, provinces, cities, booking_statuses",
             "type": "array",
             "items": {
               "type": "string"
@@ -3636,9 +3566,17 @@
           "order_preview_id": {
             "type": "string"
           },
+          "payment_method": {
+            "type": "string",
+            "description": "Extensión opcional: CARD (por defecto, tarjeta simulada) o CASH (efectivo al llegar: la reserva queda\nCONFIRMADA y su pago PENDIENTE hasta que el admin confirma que lo recibió).",
+            "enum": [
+              "CARD",
+              "CASH"
+            ]
+          },
           "payment_reference": {
             "type": "string",
-            "description": "Referencia del pago simulado: ^PAY-[A-Z0-9]{6,}$ (se valida en el servicio para responder PAYMENT_REFERENCE_INVALID)",
+            "description": "Referencia del pago simulado: ^PAY-[A-Z0-9]{6,}$ (se valida en el servicio para responder PAYMENT_REFERENCE_INVALID).\nObligatoria con tarjeta; con efectivo no se usa.",
             "maxLength": 60
           },
           "customer_details": {
@@ -3928,33 +3866,6 @@
           "url"
         ]
       },
-      "AeropuertoCercanoDto": {
-        "type": "object",
-        "properties": {
-          "aeropuerto_id": {
-            "type": "number",
-            "minimum": 1
-          },
-          "distancia_km": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 9999
-          },
-          "tiempo_min": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 3000
-          },
-          "ofrece_transfer": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "aeropuerto_id",
-          "distancia_km",
-          "tiempo_min"
-        ]
-      },
       "CrearAlojamientoDto": {
         "type": "object",
         "properties": {
@@ -4039,14 +3950,6 @@
             "minimum": 1,
             "maximum": 5
           },
-          "registro_turismo": {
-            "type": "string",
-            "maxLength": 30
-          },
-          "luaf": {
-            "type": "string",
-            "maxLength": 30
-          },
           "amenidades": {
             "description": "Ids de amenidades (reemplaza la lista completa)",
             "type": "array",
@@ -4059,13 +3962,6 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ImagenDto"
-            }
-          },
-          "aeropuertos": {
-            "description": "Aeropuertos cercanos (reemplaza la lista completa)",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AeropuertoCercanoDto"
             }
           }
         },
@@ -4164,14 +4060,6 @@
             "minimum": 1,
             "maximum": 5
           },
-          "registro_turismo": {
-            "type": "string",
-            "maxLength": 30
-          },
-          "luaf": {
-            "type": "string",
-            "maxLength": 30
-          },
           "amenidades": {
             "description": "Ids de amenidades (reemplaza la lista completa)",
             "type": "array",
@@ -4184,13 +4072,6 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ImagenDto"
-            }
-          },
-          "aeropuertos": {
-            "description": "Aeropuertos cercanos (reemplaza la lista completa)",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AeropuertoCercanoDto"
             }
           }
         }
@@ -4326,17 +4207,6 @@
           "dias"
         ]
       },
-      "ResponderSolicitudDto": {
-        "type": "object",
-        "properties": {
-          "acepta": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "acepta"
-        ]
-      },
       "ResponderResenaDto": {
         "type": "object",
         "properties": {
@@ -4395,19 +4265,6 @@
           "categoria"
         ]
       },
-      "TipoAlojamientoDto": {
-        "type": "object",
-        "properties": {
-          "nombre": {
-            "type": "string",
-            "minLength": 2,
-            "maxLength": 50
-          }
-        },
-        "required": [
-          "nombre"
-        ]
-      },
       "CiudadDto": {
         "type": "object",
         "properties": {
@@ -4437,41 +4294,6 @@
           "nombre"
         ]
       },
-      "AeropuertoDto": {
-        "type": "object",
-        "properties": {
-          "codigo_iata": {
-            "type": "string",
-            "pattern": "/^[A-Z]{3}$/"
-          },
-          "nombre": {
-            "type": "string",
-            "minLength": 3,
-            "maxLength": 120
-          },
-          "ciudad_id": {
-            "type": "number",
-            "minimum": 1
-          },
-          "latitud": {
-            "type": "number",
-            "minimum": -5,
-            "maximum": 2
-          },
-          "longitud": {
-            "type": "number",
-            "minimum": -93,
-            "maximum": -75
-          }
-        },
-        "required": [
-          "codigo_iata",
-          "nombre",
-          "ciudad_id",
-          "latitud",
-          "longitud"
-        ]
-      },
       "ImpuestoDto": {
         "type": "object",
         "properties": {
@@ -4499,9 +4321,6 @@
           "vigente_hasta": {
             "type": "string",
             "pattern": "FECHA"
-          },
-          "requiere_registro_turismo": {
-            "type": "boolean"
           },
           "estrellas_minimas": {
             "type": "number",

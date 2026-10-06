@@ -6,8 +6,8 @@ import { invalido } from '../../common/problem/problem';
 import { JobsService, ResultadoJob } from '../jobs/jobs.service';
 import { AdminService } from './admin.service';
 import {
-  AeropuertoDto, AmenidadDto, CerrarImpuestoDto, CiudadDto, EstadoAlojamientoDto, EstadoUsuarioDto, FiltroAlojamientosDto,
-  FiltroEventosDto, FiltroUsuariosDto, ImpuestoDto, TipoAlojamientoDto,
+  AmenidadDto, CerrarImpuestoDto, CiudadDto, EstadoAlojamientoDto, EstadoUsuarioDto, FiltroAlojamientosDto,
+  FiltroEventosDto, FiltroUsuariosDto, ImpuestoDto,
 } from './dto/admin.dto';
 
 type Fila = Record<string, unknown>;
@@ -71,7 +71,7 @@ export class AdminController {
   }
 
   @Get('catalogs')
-  @ApiOperation({ summary: 'Catálogos: tipos, amenidades, políticas, ciudades, aeropuertos' })
+  @ApiOperation({ summary: 'Catálogos: tipos, amenidades, políticas, ciudades' })
   async catalogos(): Promise<RespuestaApi<Record<string, Fila[]>>> {
     return ok(await this.admin.catalogos());
   }
@@ -82,22 +82,10 @@ export class AdminController {
     return ok(await this.admin.crearAmenidad(d), 'Amenidad creada');
   }
 
-  @Post('catalogs/types')
-  @ApiOperation({ summary: 'Agregar tipo de alojamiento' })
-  async tipo(@Body() d: TipoAlojamientoDto): Promise<RespuestaApi<Fila | null>> {
-    return ok(await this.admin.crearTipo(d), 'Tipo creado');
-  }
-
   @Post('catalogs/cities')
   @ApiOperation({ summary: 'Agregar ciudad' })
   async ciudad(@Body() d: CiudadDto): Promise<RespuestaApi<Fila | null>> {
     return ok(await this.admin.crearCiudad(d), 'Ciudad creada');
-  }
-
-  @Post('catalogs/airports')
-  @ApiOperation({ summary: 'Agregar aeropuerto' })
-  async aeropuerto(@Body() d: AeropuertoDto): Promise<RespuestaApi<Fila | null>> {
-    return ok(await this.admin.crearAeropuerto(d), 'Aeropuerto creado');
   }
 
   @Get('taxes')
@@ -107,7 +95,7 @@ export class AdminController {
   }
 
   @Post('taxes')
-  @ApiOperation({ summary: 'Registrar tarifa (p. ej. feriado con IVA 8% que requiere registro de turismo)' })
+  @ApiOperation({ summary: 'Registrar tarifa (p. ej. feriado con IVA reducido: aplica a todos los alojamientos en esas fechas)' })
   async crearImpuesto(@Body() d: ImpuestoDto): Promise<RespuestaApi<Fila | null>> {
     return ok(await this.admin.crearImpuesto(d), 'Tarifa registrada');
   }
@@ -126,7 +114,7 @@ export class AdminController {
 
   @Post('jobs/:nombre/ejecutar')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Ejecutar un job: expirar-solicitudes, completar-estancias, publicar-outbox, purgar-idempotencia' })
+  @ApiOperation({ summary: 'Ejecutar un job: completar-estancias, publicar-outbox, purgar-idempotencia' })
   async ejecutar(@Param('nombre') nombre: string): Promise<RespuestaApi<ResultadoJob>> {
     return ok(await this.jobs.ejecutar(nombre), 'Job ejecutado');
   }

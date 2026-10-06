@@ -86,17 +86,6 @@ interface Opcion {
             </section>
           }
 
-          @if (a.airports.length) {
-            <section class="tarjeta">
-              <h2>Aeropuertos cercanos</h2>
-              <ul>
-                @for (ae of a.airports; track ae.iata) {
-                  <li>✈ {{ ae.iata }} — {{ ae.name }}: {{ ae.distance_km }} km ({{ ae.time_min }} min){{ ae.transfer ? ' · ofrece transporte' : '' }}</li>
-                }
-              </ul>
-            </section>
-          }
-
           <section class="tarjeta">
             <h2 class="titulo-resenas">Reseñas
               @if (puntaje(); as s) { <app-calificacion [nota]="s.score" [resenas]="s.number_of_reviews" /> }
@@ -339,6 +328,7 @@ export class DetalleComponent implements OnInit {
       checkin: this.checkin(),
       checkout: this.checkout(),
       guests: this.huespedes(),
+      horaCheckin: this.aloj()?.policies?.checkin_from,
     });
     // ?demo=1 se conserva para mostrar la ayuda de tarjetas de prueba en el pago
     const demo = this.ruta.snapshot.queryParamMap.get('demo') === '1';

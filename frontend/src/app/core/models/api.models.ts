@@ -71,12 +71,10 @@ export interface CriteriosBusqueda {
   guests: Huespedes;
   city?: number;
   province?: string;
-  airport?: string;
-  max_airport_km?: number;
   accommodation_type?: number;
   max_price?: number;
   min_stars?: number;
-  sort_by?: 'relevancia' | 'precio_asc' | 'precio_desc' | 'calificacion' | 'distancia';
+  sort_by?: 'relevancia' | 'precio_asc' | 'precio_desc' | 'calificacion';
 }
 
 export interface SearchResponse {
@@ -114,14 +112,6 @@ export interface AvailabilityResponse {
   data: { id: number; currency: string; products: Producto[]; url: string };
 }
 
-export interface Aeropuerto {
-  iata: string;
-  name: string;
-  distance_km: number;
-  time_min: number;
-  transfer: boolean;
-}
-
 export interface DetalleAlojamiento {
   id: number;
   name: string;
@@ -135,7 +125,6 @@ export interface DetalleAlojamiento {
   price_from: number | null;
   currency: string;
   cover_photo: string | null;
-  airports: Aeropuerto[];
   description?: string;
   facilities?: { id: number; name: string; category: string }[];
   payment?: { methods: string[] };
@@ -195,7 +184,6 @@ export interface Constantes {
   cancellation_policies: { id: number; name: string; description: string }[];
   provinces: { name: string }[];
   cities: { id: number; name: string; province: string }[];
-  airports: { id: number; iata: string; name: string; city: string }[];
   booking_statuses: { name: string }[];
 }
 
@@ -237,6 +225,10 @@ export interface MiOrden extends OrderDetail {
   estado_interno: string;
   portada: string | null;
   tiene_resena: boolean;
+  /** TARJETA | EFECTIVO */
+  metodo_pago: string | null;
+  /** PENDIENTE (efectivo aún no recibido) | APROBADO */
+  estado_pago: string | null;
 }
 
 export interface Liquidacion {

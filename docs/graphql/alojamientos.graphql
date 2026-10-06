@@ -15,14 +15,6 @@ type Alojamiento @key(fields: "id") {
   calificacion: Float
   numResenas: Int!
   portada: String
-  aeropuertos: [AeropuertoCercano!]!
-}
-
-type AeropuertoCercano {
-  iata: String!
-  distanciaKm: Float!
-  tiempoMin: Int!
-  ofreceTransfer: Boolean!
 }
 
 # Agregado 1: resumen de oferta y calificación por ciudad (para un buscador combinado)

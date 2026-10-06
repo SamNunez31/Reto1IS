@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, roleGuard } from './core/guards/guards';
+import { authGuard, perfilGuard, roleGuard } from './core/guards/guards';
 import { BusquedaComponent } from './features/busqueda/busqueda.component';
 import { AccesoDenegadoComponent, NoEncontradoComponent, SesionExpiradaComponent, SinPortalAnfitrionComponent } from './features/errores/errores.component';
 
@@ -38,17 +38,16 @@ export const routes: Routes = [
   },
   { path: 'login', loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent), title: 'Iniciar sesión' },
   { path: 'registro', loadComponent: () => import('./features/auth/registro.component').then((m) => m.RegistroComponent), title: 'Crear cuenta' },
+  // Recuperación de clave deshabilitada en la interfaz (el backend la conserva): las rutas antiguas llevan al login
+  { path: 'recuperar-clave', redirectTo: 'login' },
+  { path: 'restablecer-clave', redirectTo: 'login' },
+  { path: 'perfil', canActivate: [authGuard, perfilGuard], loadComponent: () => import('./features/perfil/perfil.component').then((m) => m.PerfilComponent), title: 'Mi perfil' },
+  // Pública: muestra solo datos locales de este navegador (la misma vista que la pestaña del admin)
   {
-    path: 'recuperar-clave',
-    loadComponent: () => import('./features/auth/recuperar.component').then((m) => m.RecuperarComponent),
-    title: 'Recuperar clave',
+    path: 'observabilidad',
+    loadComponent: () => import('./features/admin/observabilidad.component').then((m) => m.ObservabilidadComponent),
+    title: 'Observabilidad',
   },
-  {
-    path: 'restablecer-clave',
-    loadComponent: () => import('./features/auth/recuperar.component').then((m) => m.RestablecerComponent),
-    title: 'Nueva clave',
-  },
-  { path: 'perfil', canActivate: [authGuard], loadComponent: () => import('./features/perfil/perfil.component').then((m) => m.PerfilComponent), title: 'Mi perfil' },
   { path: 'acceso-denegado', component: AccesoDenegadoComponent, title: 'Acceso denegado' },
   { path: 'sesion-expirada', component: SesionExpiradaComponent, title: 'Sesión expirada' },
   { path: 'no-encontrado', component: NoEncontradoComponent, title: 'No encontrado' },

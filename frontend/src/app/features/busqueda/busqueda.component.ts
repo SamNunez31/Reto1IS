@@ -1,7 +1,7 @@
 import { CurrencyPipe } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { switchMap } from 'rxjs';
 import { CriteriosBusqueda, DetalleAlojamiento } from '../../core/models/api.models';
@@ -11,10 +11,35 @@ import { fechaMasDias } from '../../shared/fechas';
 import { CalificacionComponent } from '../../shared/calificacion';
 import { noches, plural, rangoCorto, textoHuespedes, textoPersonas } from '../../shared/textos';
 import { AlertaErrorComponent, EstrellasComponent } from '../../shared/ui';
+import { FiltroDirective } from '../../shared/entrada';
+import { motivoPrecio } from '../../shared/validadores';
+
+/** Número entero obligatorio entre min y max (huéspedes y habitaciones; el mensaje lo da motivoBusqueda). */
+const entero = (min: number, max: number): ValidatorFn => (c) => {
+  const n = Number(c.value);
+  return c.value === null || c.value === '' || !Number.isInteger(n) || n < min || n > max ? { rango: true } : null;
+};
+
+/** Mismas reglas que el backend (/search): fechas válidas y huéspedes dentro de rango. */
+export function motivoBusqueda(
+  v: { checkin?: string | null; checkout?: string | null; adultos?: number | null; ninos?: number | null; habitaciones?: number | null; precio?: number | null },
+  hoy: string,
+): string {
+  const entre = (x: unknown, min: number, max: number) => x !== null && x !== '' && Number.isInteger(Number(x)) && Number(x) >= min && Number(x) <= max;
+  if (!v.checkin || !v.checkout) return 'Elige las fechas de entrada y salida.';
+  if (v.checkin < hoy) return 'La entrada no puede ser en el pasado.';
+  if (v.checkout <= v.checkin) return 'La salida debe ser al menos un día después de la entrada.';
+  if (!entre(v.adultos, 1, 30)) return 'Indica entre 1 y 30 adultos (número entero).';
+  if (!entre(v.ninos ?? 0, 0, 10)) return 'Indica entre 0 y 10 niños (número entero).';
+  if (!entre(v.habitaciones, 1, 20)) return 'Indica entre 1 y 20 habitaciones (número entero).';
+  const precio = motivoPrecio(v.precio, 0.01, 100000, false);
+  if (precio) return `Precio máximo: ${precio.charAt(0).toLowerCase()}${precio.slice(1)}.`;
+  return '';
+}
 
 @Component({
   selector: 'app-busqueda',
-  imports: [ReactiveFormsModule, RouterLink, CurrencyPipe, AlertaErrorComponent, EstrellasComponent, CalificacionComponent],
+  imports: [ReactiveFormsModule, RouterLink, CurrencyPipe, AlertaErrorComponent, EstrellasComponent, CalificacionComponent, FiltroDirective],
   template: `
     <section class="banner" aria-labelledby="titulo-banner">
       <div class="banner-texto">
@@ -52,9 +77,9 @@ import { AlertaErrorComponent, EstrellasComponent } from '../../shared/ui';
                   [attr.aria-expanded]="panelHuespedes()" (click)="panelHuespedes.set(!panelHuespedes())">{{ resumenHuespedes() }}</button>
           @if (panelHuespedes()) {
             <div class="panel-huespedes" id="panel-huespedes" (keydown.escape)="panelHuespedes.set(false)">
-              <label>Adultos <input type="number" formControlName="adultos" min="1" max="30" /></label>
-              <label>Niños <input type="number" formControlName="ninos" min="0" max="10" /></label>
-              <label>Habitaciones <input type="number" formControlName="habitaciones" min="1" max="20" /></label>
+              <label>Adultos <input appFiltro="entero" formControlName="adultos" maxlength="2" /></label>
+              <label>Niños <input appFiltro="entero" formControlName="ninos" maxlength="2" /></label>
+              <label>Habitaciones <input appFiltro="entero" formControlName="habitaciones" maxlength="2" /></label>
               <button class="btn btn-secundario btn-chico" type="button" (click)="panelHuespedes.set(false)">Listo</button>
             </div>
           }
@@ -68,7 +93,7 @@ import { AlertaErrorComponent, EstrellasComponent } from '../../shared/ui';
           @if (filtrosActivos()) { <span class="contador" [attr.aria-label]="filtrosActivos() + ' activos'">{{ filtrosActivos() }}</span> }
           <span class="flecha" aria-hidden="true">▾</span>
         </button>
-        @if (form.invalid) { <p class="aviso-form" role="alert">Revisa las fechas y que haya al menos 1 adulto y 1 habitación.</p> }
+        @if (problema()) { <p class="aviso-form" role="alert">{{ problema() }}</p> }
       </div>
 
       @if (masFiltros()) {
@@ -85,21 +110,13 @@ import { AlertaErrorComponent, EstrellasComponent } from '../../shared/ui';
               @for (e of [1, 2, 3, 4, 5]; track e) { <option [ngValue]="e">{{ e }}+</option> }
             </select>
           </label>
-          <label>Cerca del aeropuerto
-            <select formControlName="aeropuerto">
-              <option value="">Sin seleccionar</option>
-              @for (a of constantes()?.airports ?? []; track a.iata) { <option [value]="a.iata">{{ a.iata }} · {{ a.city }}</option> }
-            </select>
-          </label>
-          <label>Máx. km al aeropuerto <input type="number" formControlName="km" min="0" [attr.disabled]="form.controls.aeropuerto.value ? null : true" /></label>
-          <label>Precio máx./noche (USD) <input type="number" formControlName="precio" min="0" /></label>
+          <label>Precio máx./noche (USD) <input appFiltro="decimal" formControlName="precio" maxlength="9" placeholder="Sin límite" /></label>
           <label>Ordenar por
             <select formControlName="orden">
               <option value="relevancia">Relevancia</option>
               <option value="precio_asc">Precio: menor a mayor</option>
               <option value="precio_desc">Precio: mayor a menor</option>
               <option value="calificacion">Mejor calificados</option>
-              <option value="distancia">Más cerca del aeropuerto</option>
             </select>
           </label>
         </div>
@@ -142,7 +159,6 @@ import { AlertaErrorComponent, EstrellasComponent } from '../../shared/ui';
               <h2>{{ a.name }}</h2>
               <app-calificacion [nota]="a.rating.score" [resenas]="a.rating.reviews" [chica]="true" />
               <p class="ubicacion"><span>{{ a.city.name }}, {{ a.city.province }}</span><app-estrellas [n]="a.stars" /></p>
-              @if (a.airports[0]; as ae) { <p class="meta">✈ {{ ae.iata }} a {{ ae.distance_km }} km</p> }
               <div class="pie-tarjeta solo-precio">
                 @if (a.price_from) {
                   <span class="precio-desde"><small>desde</small><strong>{{ a.price_from | currency: 'USD' }}</strong> <span>/ noche</span></span>
@@ -189,16 +205,17 @@ export class BusquedaComponent implements OnInit {
     city: [null as number | null],
     checkin: [fechaMasDias(14), Validators.required],
     checkout: [fechaMasDias(16), Validators.required],
-    adultos: [2, [Validators.required, Validators.min(1)]],
-    ninos: [0, [Validators.min(0)]],
-    habitaciones: [1, [Validators.required, Validators.min(1)]],
+    adultos: [2, entero(1, 30)],
+    ninos: [0, entero(0, 10)],
+    habitaciones: [1, entero(1, 20)],
     tipo: [null as number | null],
-    aeropuerto: [''],
-    km: [null as number | null],
     precio: [null as number | null],
     estrellas: [null as number | null],
     orden: ['relevancia' as NonNullable<CriteriosBusqueda['sort_by']>],
-  });
+  }, { validators: (g) => (motivoBusqueda(g.getRawValue(), this.hoy) ? { busqueda: true } : null) });
+
+  /** Qué corregir antes de buscar (fechas y huéspedes); '' si todo está bien. */
+  readonly problema = computed(() => motivoBusqueda(this.valores(), this.hoy));
 
   private readonly provincia = toSignal(this.form.controls.province.valueChanges, { initialValue: '' });
   readonly ciudades = computed(() => {
@@ -221,7 +238,7 @@ export class BusquedaComponent implements OnInit {
   /** Filtros de "Más filtros" con valor distinto al predeterminado. */
   readonly filtrosActivos = computed(() => {
     const v = this.valores();
-    return [v.tipo, v.estrellas, v.aeropuerto, v.precio, v.orden !== 'relevancia' ? v.orden : null].filter((x) => x !== null && x !== undefined && x !== '').length;
+    return [v.tipo, v.estrellas, v.precio, v.orden !== 'relevancia' ? v.orden : null].filter((x) => x !== null && x !== undefined).length;
   });
 
   ngOnInit(): void {
@@ -230,8 +247,8 @@ export class BusquedaComponent implements OnInit {
       this.form.patchValue({
         province: previos.province ?? '', city: previos.city ?? null, checkin: previos.checkin, checkout: previos.checkout,
         adultos: previos.guests.number_of_adults, ninos: previos.guests.children?.length ?? 0,
-        habitaciones: previos.guests.number_of_rooms, tipo: previos.accommodation_type ?? null, aeropuerto: previos.airport ?? '',
-        km: previos.max_airport_km ?? null, precio: previos.max_price ?? null, estrellas: previos.min_stars ?? null,
+        habitaciones: previos.guests.number_of_rooms, tipo: previos.accommodation_type ?? null,
+        precio: previos.max_price ?? null, estrellas: previos.min_stars ?? null,
         orden: previos.sort_by ?? 'relevancia',
       });
     }
@@ -247,7 +264,7 @@ export class BusquedaComponent implements OnInit {
 
   /** Vuelve destino y "Más filtros" a sus valores iniciales (conserva fechas y huéspedes) y busca de nuevo. */
   quitarFiltros(): void {
-    this.form.patchValue({ province: '', city: null, tipo: null, aeropuerto: '', km: null, precio: null, estrellas: null, orden: 'relevancia' });
+    this.form.patchValue({ province: '', city: null, tipo: null, precio: null, estrellas: null, orden: 'relevancia' });
     this.buscar();
   }
 
@@ -280,14 +297,13 @@ export class BusquedaComponent implements OnInit {
     if (v.province) c.province = v.province;
     if (v.city) c.city = v.city;
     if (v.tipo) c.accommodation_type = v.tipo;
-    if (v.aeropuerto) c.airport = v.aeropuerto;
-    if (v.aeropuerto && v.km !== null && v.km !== undefined && `${v.km}` !== '') c.max_airport_km = Number(v.km);
     if (v.precio) c.max_price = Number(v.precio);
     if (v.estrellas) c.min_stars = v.estrellas;
     return c;
   }
 
   private cargar(page: string | undefined): void {
+    if (this.form.invalid) return; // el aviso explica qué corregir; no se llama al API con criterios inválidos
     const c = this.criterios();
     this.catalogo.criterios.set(c);
     this.paginaActual = page;

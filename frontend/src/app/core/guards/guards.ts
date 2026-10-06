@@ -10,6 +10,12 @@ export const authGuard: CanActivateFn = (_route, state) => {
   return inject(Router).createUrlTree(['/login'], { queryParams: { volver: state.url } });
 };
 
+/** "Mi perfil" es solo para huéspedes: el ADMIN va a su panel. */
+export const perfilGuard: CanActivateFn = () => {
+  const auth = inject(AuthService);
+  return auth.usuario()?.rol === 'ADMIN' ? inject(Router).createUrlTree(['/admin']) : true;
+};
+
 /** Exige uno de los roles indicados en data.roles. */
 export const roleGuard: CanActivateFn = (route, state) => {
   const auth = inject(AuthService);

@@ -4,8 +4,8 @@ import { Listado } from '../../common/http/respuestas';
 import { invalido, noEncontrado } from '../../common/problem/problem';
 import { DbService } from '../../database/db.service';
 import {
-  AeropuertoDto, AmenidadDto, CiudadDto, FiltroAlojamientosDto, FiltroEventosDto, FiltroUsuariosDto,
-  ImpuestoDto, TipoAlojamientoDto,
+  AmenidadDto, CiudadDto, FiltroAlojamientosDto, FiltroEventosDto, FiltroUsuariosDto,
+  ImpuestoDto,
 } from './dto/admin.dto';
 
 type Fila = Record<string, unknown>;
@@ -81,22 +81,17 @@ export class AdminService {
   }
 
   async catalogos(): Promise<Record<string, Fila[]>> {
-    const [tipos, amenidades, politicas, ciudades, aeropuertos] = await Promise.all([
+    const [tipos, amenidades, politicas, ciudades] = await Promise.all([
       this.db.query<Fila>(`SELECT id, nombre FROM tipo_alojamiento ORDER BY nombre`),
       this.db.query<Fila>(`SELECT id, nombre, categoria FROM amenidad ORDER BY categoria, nombre`),
       this.db.query<Fila>(`SELECT id, nombre, descripcion FROM politica_cancelacion ORDER BY id`),
       this.db.query<Fila>(`SELECT id, provincia::text AS provincia, nombre, latitud, longitud FROM ciudad ORDER BY provincia, nombre`),
-      this.db.query<Fila>(`SELECT id, codigo_iata, nombre, ciudad_id FROM aeropuerto ORDER BY codigo_iata`),
     ]);
-    return { tipos, amenidades, politicas, ciudades, aeropuertos };
+    return { tipos, amenidades, politicas, ciudades };
   }
 
   crearAmenidad(d: AmenidadDto): Promise<Fila | null> {
     return this.db.uno(`INSERT INTO amenidad (nombre, categoria) VALUES ($1, $2) RETURNING id, nombre, categoria`, [d.nombre, d.categoria]);
-  }
-
-  crearTipo(d: TipoAlojamientoDto): Promise<Fila | null> {
-    return this.db.uno(`INSERT INTO tipo_alojamiento (nombre) VALUES ($1) RETURNING id, nombre`, [d.nombre]);
   }
 
   crearCiudad(d: CiudadDto): Promise<Fila | null> {
@@ -106,16 +101,9 @@ export class AdminService {
     );
   }
 
-  crearAeropuerto(d: AeropuertoDto): Promise<Fila | null> {
-    return this.db.uno(
-      `INSERT INTO aeropuerto (codigo_iata, nombre, ciudad_id, latitud, longitud) VALUES ($1, $2, $3, $4, $5) RETURNING id, codigo_iata, nombre`,
-      [d.codigo_iata, d.nombre, d.ciudad_id, d.latitud, d.longitud],
-    );
-  }
-
   impuestos(): Promise<Fila[]> {
     return this.db.query(
-      `SELECT id, nombre, tipo::text AS tipo, porcentaje, vigente_desde, vigente_hasta, requiere_registro_turismo, estrellas_minimas
+      `SELECT id, nombre, tipo::text AS tipo, porcentaje, vigente_desde, vigente_hasta, estrellas_minimas
          FROM impuesto_tarifa ORDER BY tipo, vigente_desde DESC`,
     );
   }
@@ -125,9 +113,10 @@ export class AdminService {
       throw invalido('vigente_hasta debe ser >= vigente_desde', [{ name: 'vigente_hasta', reason: 'anterior a vigente_desde' }]);
     }
     return this.db.uno(
+      // Los feriados con IVA reducido dependen solo de sus fechas (sin exigir registro de turismo ni LUAF al alojamiento)
       `INSERT INTO impuesto_tarifa (nombre, tipo, porcentaje, vigente_desde, vigente_hasta, requiere_registro_turismo, estrellas_minimas)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, nombre`,
-      [d.nombre, d.tipo, d.porcentaje, d.vigente_desde, d.vigente_hasta ?? null, d.requiere_registro_turismo ?? false, d.estrellas_minimas ?? null],
+       VALUES ($1, $2, $3, $4, $5, false, $6) RETURNING id, nombre`,
+      [d.nombre, d.tipo, d.porcentaje, d.vigente_desde, d.vigente_hasta ?? null, d.estrellas_minimas ?? null],
     );
   }
 

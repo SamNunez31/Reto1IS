@@ -1,46 +1,63 @@
 -- =====================================================================
---  Actualiza las fotos de los 20 alojamientos demo en una BD ya cargada
---  (antes: picsum.photos aleatorias; ahora: Unsplash según tipo y ciudad).
---  Solo UPDATE de la URL por (nombre del alojamiento, orden); no crea ni borra filas.
---  Idempotente: se puede ejecutar varias veces. Mismo listado que 02_datos_demo.sql.
+--  Actualiza nombres y fotos de los alojamientos demo en una BD ya cargada.
+--  1) Renombra 3 alojamientos (sin "Aeropuerto"/"Airport" en el nombre; la amenidad
+--     "Transporte desde/hacia el aeropuerto" no se toca).
+--  2) Fotos: portada (orden 0) revisada a ojo para que muestre el alojamiento (fachada,
+--     habitación, sala o cabaña), nunca un paisaje o animal; fotos 1 y 2 del mismo tipo.
+--  Solo UPDATE por nombre (y orden); no crea ni borra filas. Idempotente.
+--  Mismo listado que 02_datos_demo.sql y datos_catalogo_extra.sql (si no se cargó, sus filas no cambian nada).
 --  Fuente: Unsplash (https://unsplash.com/license).
 -- =====================================================================
 SET search_path = booking, public;
 
 BEGIN;
 
+UPDATE alojamiento a SET nombre = r.nuevo
+  FROM (VALUES ('Hotel Quito Aeropuerto Plaza','Hotel Quito Tababela Plaza'),
+               ('Hostal Aeropuerto Guayaquil','Hostal Guayaquil Norte'),
+               ('Hostal Tababela Airport Inn','Hostal Tababela Inn')) AS r(viejo, nuevo)
+ WHERE a.nombre = r.viejo
+   AND NOT EXISTS (SELECT 1 FROM alojamiento b WHERE b.nombre = r.nuevo);
+
 UPDATE imagen_alojamiento i
    SET url = 'https://images.unsplash.com/photo-' || f.foto || '?w=800&q=75'
   FROM alojamiento a,
        (VALUES
-  ('Hotel Mariscal Boutique',0,'1590490360182-c33d57733427'),('Hotel Mariscal Boutique',1,'1649960234302-a9402e57840d'),('Hotel Mariscal Boutique',2,'1706200972821-615812a4fbe5'),
-  ('Departamento La Carolina',0,'1665249934445-1de680641f50'),('Departamento La Carolina',1,'1628004581461-13dd6f81ed07'),('Departamento La Carolina',2,'1612419299101-6c294dc2901d'),
-  ('Hostal Tababela Airport Inn',0,'1631049307264-da0ec9d70304'),('Hostal Tababela Airport Inn',1,'1606591808963-8fc3c63fa6a2'),('Hostal Tababela Airport Inn',2,'1549638441-b787d2e11f14'),
-  ('Suite Latacunga Cotopaxi View',0,'1694206078595-460a3ec27772'),('Suite Latacunga Cotopaxi View',1,'1600493505873-cddd69453072'),('Suite Latacunga Cotopaxi View',2,'1643054159199-46560f98c2f0'),
-  ('Casa Colonial Centro Histórico',0,'1773137159005-f0ecd1201f01'),('Casa Colonial Centro Histórico',1,'1523911994826-b13e77719144'),('Casa Colonial Centro Histórico',2,'1631801010037-ae6f2c0b9307'),
-  ('Cabañas Mindo Cloud Forest',0,'1767334573989-ffa2720523b2'),('Cabañas Mindo Cloud Forest',1,'1774280954999-9758f11f3d41'),('Cabañas Mindo Cloud Forest',2,'1641973240690-9c90ca32cfd4'),
-  ('Hotel Quito Aeropuerto Plaza',0,'1702014859878-5d4743176d28'),('Hotel Quito Aeropuerto Plaza',1,'1631049552057-403cdb8f0658'),('Hotel Quito Aeropuerto Plaza',2,'1641312960722-368313c42d10'),
-  ('Hostal Otavalo Mercado',0,'1546702005-7f8e5aeab4a6'),('Hostal Otavalo Mercado',1,'1582719478250-c89cae4dc85b'),('Hostal Otavalo Mercado',2,'1748013298733-0ae693a25de9'),
-  ('Hotel Malecón Guayaquil',0,'1628004566999-83b23fdc411f'),('Hotel Malecón Guayaquil',1,'1618773928121-c32242e63f39'),('Hotel Malecón Guayaquil',2,'1649550519728-f78f78518a73'),
-  ('Departamento Samborondón',0,'1654506012740-09321c969dc2'),('Departamento Samborondón',1,'1574570120538-4ec04e9ad951'),('Departamento Samborondón',2,'1656122381069-9ec666d95cf1'),
-  ('Hostal Aeropuerto Guayaquil',0,'1725962479542-1be0a6b0d444'),('Hostal Aeropuerto Guayaquil',1,'1549638441-b787d2e11f14'),('Hostal Aeropuerto Guayaquil',2,'1628004566999-83b23fdc411f'),
-  ('Casa de Playa Salinas',0,'1721369483526-62f48a00b949'),('Casa de Playa Salinas',1,'1588414698886-a128d309da5b'),('Casa de Playa Salinas',2,'1597475681177-809cfdc76cd2'),
-  ('Hotel Casa del Parque Cuenca',0,'1504037738139-b281049f760e'),('Hotel Casa del Parque Cuenca',1,'1611892440504-42a792e24d32'),('Hotel Casa del Parque Cuenca',2,'1785099367591-4f56f80c587f'),
-  ('Loft El Barranco',0,'1645327511973-9284c31e7a78'),('Loft El Barranco',1,'1600493505873-cddd69453072'),('Loft El Barranco',2,'1648430554149-edf2548b334c'),
-  ('Habitación Privada Centro Cuenca',0,'1582719478250-c89cae4dc85b'),('Habitación Privada Centro Cuenca',1,'1504037738139-b281049f760e'),('Habitación Privada Centro Cuenca',2,'1648430554149-edf2548b334c'),
-  ('Cabaña Vilcabamba Valle Sagrado',0,'1777913319909-1d27d36db93e'),('Cabaña Vilcabamba Valle Sagrado',1,'1616547141892-44cb8f6a87e2'),('Cabaña Vilcabamba Valle Sagrado',2,'1640554214186-788574b31564'),
-  ('Hotel Galápagos Puerto Ayora',0,'1706957614198-8d2e5f0ed6ea'),('Hotel Galápagos Puerto Ayora',1,'1611892440504-42a792e24d32'),('Hotel Galápagos Puerto Ayora',2,'1676910914506-39578e3446b1'),
-  ('Casa Isabela Backpackers',0,'1595517930215-d2778a56ac93'),('Casa Isabela Backpackers',1,'1709805619372-40de3f158e83'),('Casa Isabela Backpackers',2,'1503301360699-4f60cf292ec8'),
-  ('Hostería Baños Termas',0,'1767324672977-3b051d4cdb88'),('Hostería Baños Termas',1,'1590367628204-bde83a38f515'),('Hostería Baños Termas',2,'1658874286769-ac34bec90fa0'),
-  ('Hotel Manta Playa',0,'1701478008206-f84130836a9c'),('Hotel Manta Playa',1,'1618773928121-c32242e63f39'),('Hotel Manta Playa',2,'1603854690030-13b18ce2a495')
+  ('Hotel Mariscal Boutique',0,'1590490360182-c33d57733427'),('Hotel Mariscal Boutique',1,'1702014859878-5d4743176d28'),('Hotel Mariscal Boutique',2,'1767324672977-3b051d4cdb88'),
+  ('Departamento La Carolina',0,'1665249934445-1de680641f50'),('Departamento La Carolina',1,'1654506012740-09321c969dc2'),('Departamento La Carolina',2,'1493809842364-78817add7ffb'),
+  ('Hostal Tababela Inn',0,'1631049307264-da0ec9d70304'),('Hostal Tababela Inn',1,'1725962479542-1be0a6b0d444'),('Hostal Tababela Inn',2,'1520277739336-7bf67edfa768'),
+  ('Suite Latacunga Cotopaxi View',0,'1560448204-e02f11c3d0e2'),('Suite Latacunga Cotopaxi View',1,'1493809842364-78817add7ffb'),('Suite Latacunga Cotopaxi View',2,'1502672260266-1c1ef2d93688'),
+  ('Casa Colonial Centro Histórico',0,'1773137159005-f0ecd1201f01'),('Casa Colonial Centro Histórico',1,'1721369483526-62f48a00b949'),('Casa Colonial Centro Histórico',2,'1582719478250-c89cae4dc85b'),
+  ('Cabañas Mindo Cloud Forest',0,'1767334573989-ffa2720523b2'),('Cabañas Mindo Cloud Forest',1,'1777913319909-1d27d36db93e'),('Cabañas Mindo Cloud Forest',2,'1449158743715-0a90ebb6d2d8'),
+  ('Hotel Quito Tababela Plaza',0,'1702014859878-5d4743176d28'),('Hotel Quito Tababela Plaza',1,'1542314831-068cd1dbfeeb'),('Hotel Quito Tababela Plaza',2,'1551882547-ff40c63fe5fa'),
+  ('Hostal Otavalo Mercado',0,'1595576508898-0ad5c879a061'),('Hostal Otavalo Mercado',1,'1520277739336-7bf67edfa768'),('Hostal Otavalo Mercado',2,'1555854877-bab0e564b8d5'),
+  ('Hotel Malecón Guayaquil',0,'1571896349842-33c89424de2d'),('Hotel Malecón Guayaquil',1,'1551882547-ff40c63fe5fa'),('Hotel Malecón Guayaquil',2,'1564501049412-61c2a3083791'),
+  ('Departamento Samborondón',0,'1654506012740-09321c969dc2'),('Departamento Samborondón',1,'1554995207-c18c203602cb'),('Departamento Samborondón',2,'1560448204-e02f11c3d0e2'),
+  ('Hostal Guayaquil Norte',0,'1725962479542-1be0a6b0d444'),('Hostal Guayaquil Norte',1,'1505693416388-ac5ce068fe85'),('Hostal Guayaquil Norte',2,'1631049307264-da0ec9d70304'),
+  ('Casa de Playa Salinas',0,'1721369483526-62f48a00b949'),('Casa de Playa Salinas',1,'1564013799919-ab600027ffc6'),('Casa de Playa Salinas',2,'1570129477492-45c003edd2be'),
+  ('Hotel Casa del Parque Cuenca',0,'1590381105924-c72589b9ef3f'),('Hotel Casa del Parque Cuenca',1,'1571896349842-33c89424de2d'),('Hotel Casa del Parque Cuenca',2,'1631049035182-249067d7618e'),
+  ('Loft El Barranco',0,'1586023492125-27b2c045efd7'),('Loft El Barranco',1,'1560448204-e02f11c3d0e2'),('Loft El Barranco',2,'1556020685-ae41abfc9365'),
+  ('Habitación Privada Centro Cuenca',0,'1582719478250-c89cae4dc85b'),('Habitación Privada Centro Cuenca',1,'1580587771525-78b9dba3b914'),('Habitación Privada Centro Cuenca',2,'1512917774080-9991f1c4c750'),
+  ('Cabaña Vilcabamba Valle Sagrado',0,'1777913319909-1d27d36db93e'),('Cabaña Vilcabamba Valle Sagrado',1,'1587061949409-02df41d5e562'),('Cabaña Vilcabamba Valle Sagrado',2,'1510798831971-661eb04b3739'),
+  ('Hotel Galápagos Puerto Ayora',0,'1564501049412-61c2a3083791'),('Hotel Galápagos Puerto Ayora',1,'1578683010236-d716f9a3f461'),('Hotel Galápagos Puerto Ayora',2,'1590490360182-c33d57733427'),
+  ('Casa Isabela Backpackers',0,'1520277739336-7bf67edfa768'),('Casa Isabela Backpackers',1,'1725962479542-1be0a6b0d444'),('Casa Isabela Backpackers',2,'1555854877-bab0e564b8d5'),
+  ('Hostería Baños Termas',0,'1767324672977-3b051d4cdb88'),('Hostería Baños Termas',1,'1702014859878-5d4743176d28'),('Hostería Baños Termas',2,'1542314831-068cd1dbfeeb'),
+  ('Hotel Manta Playa',0,'1551882547-ff40c63fe5fa'),('Hotel Manta Playa',1,'1542314831-068cd1dbfeeb'),('Hotel Manta Playa',2,'1564501049412-61c2a3083791'),
+  -- datos_catalogo_extra.sql
+  ('Hotel Jardín La Floresta',0,'1542314831-068cd1dbfeeb'),('Hotel Jardín La Floresta',1,'1590490360182-c33d57733427'),('Hotel Jardín La Floresta',2,'1702014859878-5d4743176d28'),
+  ('Departamento Puerto Santa Ana',0,'1554995207-c18c203602cb'),('Departamento Puerto Santa Ana',1,'1665249934445-1de680641f50'),('Departamento Puerto Santa Ana',2,'1654506012740-09321c969dc2'),
+  ('Casa Tomebamba',0,'1570129477492-45c003edd2be'),('Casa Tomebamba',1,'1773137159005-f0ecd1201f01'),('Casa Tomebamba',2,'1721369483526-62f48a00b949'),
+  ('Cabañas Río Pastaza',0,'1587061949409-02df41d5e562'),('Cabañas Río Pastaza',1,'1767334573989-ffa2720523b2'),('Cabañas Río Pastaza',2,'1777913319909-1d27d36db93e'),
+  ('Hostal Ficoa Ambato',0,'1505693416388-ac5ce068fe85'),('Hostal Ficoa Ambato',1,'1631049307264-da0ec9d70304'),('Hostal Ficoa Ambato',2,'1725962479542-1be0a6b0d444'),
+  ('Hotel Chimborazo Centro',0,'1578683010236-d716f9a3f461'),('Hotel Chimborazo Centro',1,'1767324672977-3b051d4cdb88'),('Hotel Chimborazo Centro',2,'1542314831-068cd1dbfeeb'),
+  ('Departamento Jipiro Loja',0,'1522708323590-d24dbb6b0267'),('Departamento Jipiro Loja',1,'1493809842364-78817add7ffb'),('Departamento Jipiro Loja',2,'1502672260266-1c1ef2d93688'),
+  ('Cabañas Amazonía Tena',0,'1566073771259-6a8506099945'),('Cabañas Amazonía Tena',1,'1449158743715-0a90ebb6d2d8'),('Cabañas Amazonía Tena',2,'1587061949409-02df41d5e562'),
+  ('Hostal Surf Montañita',0,'1555854877-bab0e564b8d5'),('Hostal Surf Montañita',1,'1520277739336-7bf67edfa768'),('Hostal Surf Montañita',2,'1595576508898-0ad5c879a061'),
+  ('Casa Yahuarcocha',0,'1568605114967-8130f3a36994'),('Casa Yahuarcocha',1,'1582719478250-c89cae4dc85b'),('Casa Yahuarcocha',2,'1564013799919-ab600027ffc6')
        ) AS f(nombre, orden, foto)
  WHERE a.id = i.alojamiento_id
    AND a.nombre = f.nombre
-   AND i.orden = f.orden;
+   AND i.orden = f.orden
+   AND i.url IS DISTINCT FROM 'https://images.unsplash.com/photo-' || f.foto || '?w=800&q=75';
 
 COMMIT;
-
--- Comprobación: cuántas fotos de los demo siguen en picsum (debe ser 0)
-SELECT count(*) AS fotos_picsum_restantes
-  FROM imagen_alojamiento i JOIN alojamiento a ON a.id = i.alojamiento_id
- WHERE i.url LIKE 'https://picsum.photos/%';

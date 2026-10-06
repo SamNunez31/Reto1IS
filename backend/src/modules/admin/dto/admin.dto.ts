@@ -27,10 +27,6 @@ export class AmenidadDto {
   @Sanitizar() @IsString() @Length(2, 30) categoria: string;
 }
 
-export class TipoAlojamientoDto {
-  @Sanitizar() @IsString() @Length(2, 50) nombre: string;
-}
-
 export class CiudadDto {
   @IsString() @Length(3, 40) provincia: string;
   @Sanitizar() @IsString() @Length(2, 80) nombre: string;
@@ -38,27 +34,18 @@ export class CiudadDto {
   @IsOptional() @IsNumber() @Min(LONGITUD_EC.min) @Max(LONGITUD_EC.max) longitud?: number;
 }
 
-export class AeropuertoDto {
-  @Matches(/^[A-Z]{3}$/) codigo_iata: string;
-  @Sanitizar() @IsString() @Length(3, 120) nombre: string;
-  @IsInt() @Min(1) ciudad_id: number;
-  @IsNumber() @Min(LATITUD_EC.min) @Max(LATITUD_EC.max) latitud: number;
-  @IsNumber() @Min(LONGITUD_EC.min) @Max(LONGITUD_EC.max) longitud: number;
-}
-
 export enum TipoImpuesto {
   IVA = 'IVA',
   SERVICIO = 'SERVICIO',
 }
 
-/** Tarifa de impuesto con vigencia. Un feriado con IVA reducido es una fila IVA con desde/hasta y requiere_registro_turismo. */
+/** Tarifa de impuesto con vigencia. Un feriado con IVA reducido es una fila IVA con desde/hasta (aplica a todos los alojamientos). */
 export class ImpuestoDto {
   @Sanitizar() @IsString() @Length(3, 80) nombre: string;
   @IsEnum(TipoImpuesto) tipo: TipoImpuesto;
   @IsNumber() @Min(0) @Max(100) porcentaje: number;
   @Matches(FECHA, { message: MSG_FECHA }) vigente_desde: string;
   @IsOptional() @Matches(FECHA, { message: MSG_FECHA }) vigente_hasta?: string;
-  @IsOptional() @IsBoolean() requiere_registro_turismo?: boolean;
   @IsOptional() @IsInt() @Min(1) @Max(5) estrellas_minimas?: number;
 }
 

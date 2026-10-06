@@ -29,10 +29,9 @@ import { LIMITES, normalizarEmail, revisarYEnfocar, vEmail, vRequerido } from '.
           </app-ojo-clave>
           <app-campo-mensaje [control]="form.controls.password" id="msg-login-clave" [mostrarOk]="false" />
         </div>
-        <button class="btn btn-primario" type="submit" [disabled]="enviando()">{{ enviando() ? 'Ingresando…' : 'Ingresar' }}</button>
+        <button class="btn btn-primario" type="submit" [disabled]="enviando() || form.invalid">{{ enviando() ? 'Ingresando…' : 'Ingresar' }}</button>
       </form>
       <p class="pie">
-        <a routerLink="/recuperar-clave">¿Olvidaste tu clave?</a> ·
         <a routerLink="/registro">Crear cuenta</a>
       </p>
     </section>

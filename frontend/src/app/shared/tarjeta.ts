@@ -87,11 +87,16 @@ export function motivoCvv(cvv: string, marca: Marca): string | null {
   return null;
 }
 
+/** Titular: letras (con tildes, ñ), espacios, apóstrofe y guion. */
+const TITULAR = /^[A-Za-zÀ-ÖØ-öø-ÿ]+(?:[ '’-][A-Za-zÀ-ÖØ-öø-ÿ]+)*$/;
+
 export function motivoTitular(v: string): string | null {
   const t = v.trim().replace(/\s+/g, ' ');
   if (!t) return 'Ingresa el nombre como aparece en la tarjeta';
   if (/\d/.test(t)) return 'El nombre no puede tener números';
+  if (!TITULAR.test(t)) return 'El nombre solo puede tener letras, espacios, guion (-) y apóstrofe (\')';
   if (t.length < 3) return 'Escribe el nombre completo';
+  if (t.length > 80) return 'El nombre puede tener máximo 80 caracteres';
   return null;
 }
 

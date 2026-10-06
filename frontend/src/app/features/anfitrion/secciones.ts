@@ -3,9 +3,11 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { CatalogoService } from '../../core/services/catalogo.service';
 import { CampoMensajeComponent, conError } from '../../shared/campo';
+import { ConfirmarService } from '../../shared/confirmar';
+import { FiltroDirective } from '../../shared/entrada';
 import { TelefonoDirective } from '../../shared/telefono.directive';
 import { PISTA_TELEFONO } from '../../shared/validadores';
-import { aeropuertosDe, esUrlHttps, FormAlojamiento, grupoAeropuerto, ICONO_AMENIDAD, ICONO_TIPO, L, NOMBRE_POLITICA, reglasTexto, urlsDe } from './alojamiento-form';
+import { esUrlHttps, FormAlojamiento, ICONO_AMENIDAD, ICONO_TIPO, L, NOMBRE_POLITICA, reglasTexto, urlsDe } from './alojamiento-form';
 import { DireccionMapaComponent } from './direccion-mapa.component';
 import { lineasTramos, PoliticasService } from './politicas.service';
 
@@ -58,7 +60,7 @@ export class SecTipoComponent {
   }
 }
 
-/** Ciudad, dirección con mapa y aeropuertos cercanos. */
+/** Ciudad y dirección con mapa. */
 @Component({
   selector: 'app-sec-ubicacion',
   imports: [ReactiveFormsModule, CampoMensajeComponent, DireccionMapaComponent],
@@ -75,70 +77,25 @@ export class SecTipoComponent {
 
       <app-direccion-mapa [direccion]="form().controls.direccion" [latitud]="form().controls.latitud" [longitud]="form().controls.longitud"
                           [ciudad]="etiquetaCiudad()" />
-
-      <fieldset class="bloque">
-        <legend>Aeropuertos cercanos <span class="ayuda">(opcional)</span></legend>
-        <p class="ayuda">Ayuda a quien llega en avión: distancia por carretera, tiempo y si ofreces transporte.</p>
-        <div formArrayName="aeropuertos" class="lista-aeropuertos">
-          @for (g of aeropuertos().controls; track $index; let i = $index) {
-            <div class="aeropuerto-fila" [formGroupName]="i">
-              <div class="grupo">
-                <label [for]="'ae-' + i">Aeropuerto</label>
-                <select [id]="'ae-' + i" formControlName="aeropuerto_id">
-                  @for (ae of c()?.airports ?? []; track ae.id) { <option [ngValue]="ae.id">{{ ae.iata }} · {{ ae.city }}</option> }
-                </select>
-              </div>
-              <div class="grupo">
-                <label [for]="'ae-km-' + i">Km</label>
-                <input [id]="'ae-km-' + i" type="number" formControlName="distancia_km" min="0" [max]="Lim.km"
-                       [attr.aria-invalid]="mal(g.get('distancia_km'))" [attr.aria-describedby]="'msg-ae-km-' + i" />
-                <app-campo-mensaje [control]="g.get('distancia_km')" [id]="'msg-ae-km-' + i" [mostrarOk]="false" />
-              </div>
-              <div class="grupo">
-                <label [for]="'ae-min-' + i">Minutos</label>
-                <input [id]="'ae-min-' + i" type="number" formControlName="tiempo_min" min="0" [max]="Lim.minutos"
-                       [attr.aria-invalid]="mal(g.get('tiempo_min'))" [attr.aria-describedby]="'msg-ae-min-' + i" />
-                <app-campo-mensaje [control]="g.get('tiempo_min')" [id]="'msg-ae-min-' + i" [mostrarOk]="false" />
-              </div>
-              <label class="check"><input type="checkbox" formControlName="ofrece_transfer" /> Transfer</label>
-              <button class="btn btn-chico" type="button" (click)="quitar(i)">Quitar</button>
-            </div>
-          }
-        </div>
-        @if (aeropuertos().length < Lim.aeropuertos) {
-          <button class="btn btn-chico" type="button" (click)="agregar()">+ Aeropuerto</button>
-        }
-      </fieldset>
     </div>
   `,
 })
 export class SecUbicacionComponent {
   readonly form = input.required<FormAlojamiento>();
-  private readonly fb = inject(FormBuilder);
   readonly c = toSignal(inject(CatalogoService).constantes());
-  readonly Lim = L;
   readonly mal = mal;
-  readonly aeropuertos = computed(() => aeropuertosDe(this.form()));
 
   etiquetaCiudad(): string {
     const id = this.form().controls.ciudad_id.value;
     const ci = (this.c()?.cities ?? []).find((x) => x.id === id);
     return ci ? `${ci.name}, ${ci.province}` : '';
   }
-  agregar(): void {
-    this.aeropuertos().push(grupoAeropuerto(this.fb, this.c()?.airports[0]?.id ?? 1));
-    this.aeropuertos().markAsDirty();
-  }
-  quitar(i: number): void {
-    this.aeropuertos().removeAt(i);
-    this.aeropuertos().markAsDirty();
-  }
 }
 
 /** Horarios, estadía, limpieza, contacto, categoría y registros. */
 @Component({
   selector: 'app-sec-horarios',
-  imports: [ReactiveFormsModule, CampoMensajeComponent, TelefonoDirective],
+  imports: [ReactiveFormsModule, CampoMensajeComponent, TelefonoDirective, FiltroDirective],
   template: `
     <div [formGroup]="form()">
       <div class="fila">
@@ -154,19 +111,19 @@ export class SecUbicacionComponent {
         </div>
         <div class="grupo">
           <label for="ed-nmin">Noches mínimas</label>
-          <input id="ed-nmin" type="number" formControlName="noches_min" min="1" max="365" step="1" [attr.aria-invalid]="mal(form().controls.noches_min)" aria-describedby="msg-nmin" />
+          <input id="ed-nmin" appFiltro="entero" formControlName="noches_min" maxlength="3" placeholder="1" [attr.aria-invalid]="mal(form().controls.noches_min)" aria-describedby="msg-nmin" />
           <app-campo-mensaje [control]="form().controls.noches_min" id="msg-nmin" [mostrarOk]="false" />
         </div>
         <div class="grupo">
           <label for="ed-nmax">Noches máximas</label>
-          <input id="ed-nmax" type="number" formControlName="noches_max" min="1" max="365" step="1" [attr.aria-invalid]="mal(form().controls.noches_max)" aria-describedby="msg-nmax" />
+          <input id="ed-nmax" appFiltro="entero" formControlName="noches_max" maxlength="3" placeholder="30" [attr.aria-invalid]="mal(form().controls.noches_max)" aria-describedby="msg-nmax" />
           <app-campo-mensaje [control]="form().controls.noches_max" id="msg-nmax" [mostrarOk]="false" />
         </div>
       </div>
       <div class="fila">
         <div class="grupo">
           <label for="ed-limpieza">Tarifa de limpieza (USD)</label>
-          <input id="ed-limpieza" type="number" formControlName="tarifa_limpieza" min="0" max="10000" step="0.01" [attr.aria-invalid]="mal(form().controls.tarifa_limpieza)" aria-describedby="ayuda-limpieza msg-limpieza" />
+          <input id="ed-limpieza" appFiltro="decimal" formControlName="tarifa_limpieza" maxlength="8" placeholder="0,00" [attr.aria-invalid]="mal(form().controls.tarifa_limpieza)" aria-describedby="ayuda-limpieza msg-limpieza" />
           <small id="ayuda-limpieza" class="ayuda">Cargo único por reserva (no por noche) que cubre la limpieza. Se suma al total y el huésped lo ve desglosado. Si no cobras limpieza, déjalo en 0.</small>
           <app-campo-mensaje [control]="form().controls.tarifa_limpieza" id="msg-limpieza" [mostrarOk]="false" />
         </div>
@@ -185,21 +142,6 @@ export class SecUbicacionComponent {
           <small id="ayuda-estrellas" class="ayuda">Solo si el Ministerio de Turismo te categorizó. Con 4 o 5 estrellas se suma el 10 % de servicio.</small>
         </div>
       </div>
-      <div class="fila">
-        <div class="grupo">
-          <label for="ed-registro">Registro de turismo (opcional)</label>
-          <input id="ed-registro" formControlName="registro_turismo" [maxlength]="Lim.registro" aria-describedby="nota-registro msg-registro" [attr.aria-invalid]="mal(form().controls.registro_turismo)" />
-          <small id="nota-registro" class="ayuda">Número del registro del Ministerio de Turismo que te habilita como alojamiento.</small>
-          <app-campo-mensaje [control]="form().controls.registro_turismo" id="msg-registro" [mostrarOk]="false" />
-        </div>
-        <div class="grupo">
-          <label for="ed-luaf">LUAF (opcional)</label>
-          <input id="ed-luaf" formControlName="luaf" [maxlength]="Lim.registro" aria-describedby="nota-luaf msg-luaf" [attr.aria-invalid]="mal(form().controls.luaf)" />
-          <small id="nota-luaf" class="ayuda">Licencia Única Anual de Funcionamiento que emite tu municipio.</small>
-          <app-campo-mensaje [control]="form().controls.luaf" id="msg-luaf" [mostrarOk]="false" />
-        </div>
-      </div>
-      <p class="nota">💡 Con registro de turismo y LUAF aplica el IVA reducido en los feriados que registre la administración.</p>
     </div>
   `,
 })

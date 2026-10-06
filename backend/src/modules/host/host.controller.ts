@@ -1,13 +1,15 @@
-import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Put, Query, Req } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
+import { auditar } from '../../common/logging/auditoria';
 import { Roles, UsuarioActual, UsuarioToken } from '../../common/auth/decorators';
 import { listado, Listado, ok, RespuestaApi } from '../../common/http/respuestas';
 import { invalido } from '../../common/problem/problem';
 import {
   ActualizarAlojamientoDto, ActualizarUnidadDto, CalendarioDto, CrearAlojamientoDto, FiltroReservasHostDto, RangoFechasDto,
-  ResponderResenaDto, ResponderSolicitudDto, UnidadDto,
+  ResponderResenaDto, UnidadDto,
 } from './dto/host.dto';
-import { HostService, ResumenAlojamiento, SolicitudHost, UnidadHost } from './host.service';
+import { HostService, ReservaHost, ResumenAlojamiento, UnidadHost } from './host.service';
 
 const uuid = (n: string) =>
   new ParseUUIDPipe({ exceptionFactory: () => invalido(`${n} debe ser un UUID`, [{ name: n, reason: 'formato UUID requerido' }]) });
@@ -106,21 +108,34 @@ export class HostController {
   }
 
   @Get('orders')
-  @ApiOperation({ summary: 'Reservas y solicitudes de mis alojamientos' })
-  async reservas(@Query() f: FiltroReservasHostDto, @UsuarioActual() u: UsuarioToken): Promise<RespuestaApi<Listado<SolicitudHost>>> {
+  @ApiOperation({ summary: 'Reservas de los alojamientos del catálogo' })
+  async reservas(@Query() f: FiltroReservasHostDto, @UsuarioActual() u: UsuarioToken): Promise<RespuestaApi<Listado<ReservaHost>>> {
     const r = await this.host.reservas(u, f);
     return listado(r.items, r.total, r.limit, r.offset);
   }
 
-  @Post('orders/:id/respond')
+  @Get('orders/:id')
+  @ApiOperation({ summary: 'Detalle de una reserva (incluye método y estado del pago)' })
+  async reserva(@Param('id', uuid('id')) id: string, @UsuarioActual() u: UsuarioToken): Promise<RespuestaApi<ReservaHost>> {
+    return ok(await this.host.reserva(id, u));
+  }
+
+  @Post('orders/:id/confirm-payment')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Aceptar o rechazar una solicitud (fn_responder_solicitud)' })
-  async responder(
+  @ApiOperation({
+    summary: 'Confirmar que se recibió el pago en efectivo',
+    description: 'Marca como APROBADO el pago PENDIENTE en efectivo de la reserva. Idempotente: si ya estaba confirmado responde 200 ' +
+      'con ya_confirmado=true. 409 si la reserva no se paga en efectivo o está cancelada. Queda registrado en la auditoría.',
+  })
+  @ApiResponse({ status: 409, description: 'La reserva no tiene un pago en efectivo que confirmar' })
+  async confirmarPago(
     @Param('id', uuid('id')) id: string,
-    @Body() dto: ResponderSolicitudDto,
     @UsuarioActual() u: UsuarioToken,
-  ): Promise<RespuestaApi<{ estado: string }>> {
-    return ok(await this.host.responder(id, dto.acepta, u), dto.acepta ? 'Solicitud aceptada' : 'Solicitud rechazada');
+    @Req() req: Request,
+  ): Promise<RespuestaApi<{ reserva: ReservaHost; ya_confirmado: boolean }>> {
+    const r = await this.host.confirmarPago(id, u);
+    auditar('pago_confirmado', req, { reserva_id: id, codigo: r.reserva.codigo, ya_confirmado: r.ya_confirmado });
+    return ok(r, r.ya_confirmado ? 'El pago ya estaba confirmado' : 'Pago en efectivo confirmado');
   }
 
   @Get('income')

@@ -7,11 +7,14 @@ import { Listado } from '../../core/models/api.models';
 import { AdminService, Catalogos, Fila } from '../../core/services/admin.service';
 import { DashboardAdminComponent } from './dashboard.component';
 import { ObservabilidadComponent } from './observabilidad.component';
-import { AnfitrionService, ResenaHost, SolicitudHost } from '../../core/services/anfitrion.service';
+import { AnfitrionService, ResenaHost, ReservaHost } from '../../core/services/anfitrion.service';
 import { ErrorVista, leerError } from '../../core/services/api-base';
 import { avisoTemporal } from '../../shared/aviso';
 import { CalificacionComponent } from '../../shared/calificacion';
-import { fechaLarga, rangoCorto, rangoLargo } from '../../shared/textos';
+import { PagoComponent } from '../../shared/pago';
+import { fechaLarga, rangoCorto } from '../../shared/textos';
+import { FiltroDirective } from '../../shared/entrada';
+import { motivoNombreLugar, motivoRango } from '../../shared/validadores';
 import { ConfirmarService } from '../../shared/confirmar';
 import { AlertaErrorComponent, CargandoComponent, EstadoComponent } from '../../shared/ui';
 
@@ -21,8 +24,8 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
 @Component({
   selector: 'app-admin',
   imports: [
-    CurrencyPipe, DatePipe, JsonPipe, FormsModule, RouterLink, AlertaErrorComponent, CargandoComponent, EstadoComponent, CalificacionComponent,
-    DashboardAdminComponent, ObservabilidadComponent,
+    CurrencyPipe, DatePipe, JsonPipe, FormsModule, RouterLink, AlertaErrorComponent, CargandoComponent, EstadoComponent, CalificacionComponent, PagoComponent,
+    DashboardAdminComponent, ObservabilidadComponent, FiltroDirective,
   ],
   template: `
     <h1>Administración</h1>
@@ -85,28 +88,31 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
         <label class="filtro-inline">Estado
           <select [(ngModel)]="filtroReservas" (change)="ir('reservas')">
             <option value="">Todas</option><option value="CONFIRMADA">Confirmadas</option><option value="COMPLETADA">Completadas</option>
-            <option value="CANCELADA">Canceladas</option><option value="PENDIENTE">Pendientes</option>
+            <option value="CANCELADA">Canceladas</option>
+          </select>
+        </label>
+        <label class="filtro-inline">Pago
+          <select [(ngModel)]="filtroPago" (change)="ir('reservas')">
+            <option value="">Todos</option><option value="PENDIENTE">Pago pendiente (efectivo)</option><option value="APROBADO">Pagado</option>
           </select>
         </label>
         <div class="tabla-scroll tarjeta">
           <table class="tabla">
-            <thead><tr><th>Código de reserva</th><th>Alojamiento</th><th>Huésped</th><th>Fechas</th><th>Total</th><th>Estado</th><th><span class="sr-only">Acciones</span></th></tr></thead>
+            <thead><tr><th>Código de reserva</th><th>Alojamiento</th><th>Huésped</th><th>Fechas</th><th>Total</th><th>Estado</th><th>Pago</th><th><span class="sr-only">Acciones</span></th></tr></thead>
             <tbody>
               @for (s of reservas(); track s.id) {
                 <tr>
                   <td>{{ s.codigo }}</td><td>{{ s.alojamiento }}</td><td>{{ s.huesped }} ({{ s.num_huespedes }})</td>
                   <td>{{ rango(s.fecha_entrada, s.fecha_salida) }}</td><td>{{ s.total | currency: 'USD' }}</td>
-                  <td><app-estado [estado]="s.estado" />
-                    @if (s.expira_en) { <br /><small>vence {{ s.expira_en | date: 'short' }}</small> }</td>
+                  <td><app-estado [estado]="s.estado" /></td>
+                  <td><app-pago [metodo]="s.metodo_pago" [estado]="s.estado_pago" vista="admin" /></td>
                   <td>
-                    <!-- Solo para solicitudes antiguas (antes de la reserva inmediata): se confirman o rechazan aquí -->
-                    @if (s.estado === 'PENDIENTE') {
-                      <button class="btn btn-chico btn-primario" type="button" (click)="responder(s, true)">Confirmar</button>
-                      <button class="btn btn-chico" type="button" (click)="responder(s, false)">Rechazar</button>
+                    @if (s.metodo_pago === 'EFECTIVO' && s.estado_pago === 'PENDIENTE' && (s.estado === 'CONFIRMADA' || s.estado === 'COMPLETADA')) {
+                      <button class="btn btn-chico btn-primario" type="button" (click)="confirmarPago(s)">Confirmar pago recibido</button>
                     }
                   </td>
                 </tr>
-              } @empty { @if (!cargando()) { <tr><td colspan="7">Sin reservas</td></tr> } }
+              } @empty { @if (!cargando()) { <tr><td colspan="8">Sin reservas</td></tr> } }
             </tbody>
           </table>
         </div>
@@ -164,16 +170,17 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
             <section class="tarjeta">
               <h2>Tipos de alojamiento</h2>
               <ul class="chips">@for (t of k.tipos; track t.id) { <li>{{ t.nombre }}</li> }</ul>
-              <form class="fila" (ngSubmit)="crear('types', { nombre: nuevoTipo })">
-                <label>Nombre <input name="nt" [(ngModel)]="nuevoTipo" required /></label>
-                <button class="btn" type="submit">Agregar</button>
+              <p class="ayuda">Catálogo cerrado: los tipos más buscados en Ecuador.</p>
+              <h2>Ciudades ({{ k.ciudades.length }})</h2>
+              <form class="fila" (ngSubmit)="crearCiudad()" novalidate>
+                <label>Provincia <input name="np" appFiltro="nombre" [(ngModel)]="nuevaProvincia" maxlength="40" placeholder="Pichincha"
+                       [attr.aria-invalid]="!!nuevaProvincia && !!problemaCiudad().provincia" aria-describedby="msg-provincia" /></label>
+                <label>Ciudad <input name="nci" appFiltro="nombre" [(ngModel)]="nuevaCiudad" maxlength="80" placeholder="Quito"
+                       [attr.aria-invalid]="!!nuevaCiudad && !!problemaCiudad().ciudad" aria-describedby="msg-ciudad" /></label>
+                <button class="btn" type="submit" [disabled]="!!problemaCiudad().provincia || !!problemaCiudad().ciudad">Agregar ciudad</button>
               </form>
-              <h2>Ciudades ({{ k.ciudades.length }}) y aeropuertos ({{ k.aeropuertos.length }})</h2>
-              <form class="fila" (ngSubmit)="crear('cities', { provincia: nuevaProvincia, nombre: nuevaCiudad })">
-                <label>Provincia <input name="np" [(ngModel)]="nuevaProvincia" required placeholder="Pichincha" /></label>
-                <label>Ciudad <input name="nci" [(ngModel)]="nuevaCiudad" required /></label>
-                <button class="btn" type="submit">Agregar ciudad</button>
-              </form>
+              @if (nuevaProvincia && problemaCiudad().provincia; as p) { <p class="msg-campo msg-error" id="msg-provincia" role="alert"><span aria-hidden="true">✗</span> Provincia: {{ p }}</p> }
+              @if (nuevaCiudad && problemaCiudad().ciudad; as p) { <p class="msg-campo msg-error" id="msg-ciudad" role="alert"><span aria-hidden="true">✗</span> Ciudad: {{ p }}</p> }
               <h3>Políticas de cancelación</h3>
               <ul>@for (p of k.politicas; track p.id) { <li><strong>{{ p.nombre }}</strong>: {{ p.descripcion }}</li> }</ul>
             </section>
@@ -186,29 +193,39 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
           <h2>Tarifas vigentes e históricas</h2>
           <div class="tabla-scroll">
             <table class="tabla">
-              <thead><tr><th>Nombre</th><th>Tipo</th><th>%</th><th>Desde</th><th>Hasta</th><th>Req. registro turismo</th><th></th></tr></thead>
+              <thead><tr><th>Nombre</th><th>Tipo</th><th>%</th><th>Desde</th><th>Hasta</th><th><span class="sr-only">Acciones</span></th></tr></thead>
               <tbody>
                 @for (t of filas(); track t['id']) {
                   <tr><td>{{ t['nombre'] }}</td><td>{{ t['tipo'] }}</td><td>{{ t['porcentaje'] }}</td><td>{{ fecha(t['vigente_desde']) }}</td>
-                    <td>{{ t['vigente_hasta'] ? fecha(t['vigente_hasta']) : '—' }}</td><td>{{ t['requiere_registro_turismo'] ? 'Sí' : 'No' }}</td>
+                    <td>{{ t['vigente_hasta'] ? fecha(t['vigente_hasta']) : '—' }}</td>
                     <td>@if (!t['vigente_hasta']) { <button class="btn btn-chico" type="button" (click)="cerrarImpuesto(t)">Cerrar hoy</button> }</td></tr>
                 }
               </tbody>
             </table>
           </div>
         </section>
-        <form class="tarjeta" (ngSubmit)="crearImpuesto()">
+        <form class="tarjeta" (ngSubmit)="crearImpuesto()" novalidate>
           <h2>Registrar feriado / tarifa</h2>
-          <p class="ayuda">Ejemplo feriado: IVA 8 % del decreto vigente, requiere registro de turismo y LUAF. Verifica el decreto en el SRI.</p>
+          <p class="ayuda">Ejemplo feriado: IVA 8 % del decreto vigente, con sus fechas de inicio y fin; aplica a todos los alojamientos en esas fechas. Verifica el decreto en el SRI.</p>
           <div class="fila">
-            <label>Nombre <input name="in" [(ngModel)]="imp.nombre" required /></label>
+            <label>Nombre <input name="in" [(ngModel)]="imp.nombre" maxlength="80" placeholder="Feriado de Navidad" (blur)="tocadoImp.nombre = true"
+                   [attr.aria-invalid]="tocadoImp.nombre && !!problemaImpuesto().nombre" aria-describedby="msg-imp-nombre" /></label>
             <label>Tipo <select name="it" [(ngModel)]="imp.tipo"><option value="IVA">IVA</option><option value="SERVICIO">Servicio</option></select></label>
-            <label>% <input name="ip" type="number" [(ngModel)]="imp.porcentaje" min="0" max="100" required /></label>
-            <label>Desde <input name="id" type="date" [(ngModel)]="imp.vigente_desde" required /></label>
-            <label>Hasta <input name="ih" type="date" [(ngModel)]="imp.vigente_hasta" /></label>
-            <label class="check"><input name="ir" type="checkbox" [(ngModel)]="imp.requiere_registro_turismo" /> Requiere registro de turismo</label>
+            <label>% <input name="ip" appFiltro="decimal" [(ngModel)]="imp.porcentaje" maxlength="6" placeholder="8" (blur)="tocadoImp.porcentaje = true"
+                   [attr.aria-invalid]="tocadoImp.porcentaje && !!problemaImpuesto().porcentaje" aria-describedby="msg-imp-pct" /></label>
+            <label>Desde <input name="id" type="date" [(ngModel)]="imp.vigente_desde" (blur)="tocadoImp.desde = true"
+                   [attr.aria-invalid]="tocadoImp.desde && !!problemaImpuesto().desde" aria-describedby="msg-imp-desde" /></label>
+            <label>Hasta <input name="ih" type="date" [(ngModel)]="imp.vigente_hasta" [min]="imp.vigente_desde"
+                   [attr.aria-invalid]="!!problemaImpuesto().hasta" aria-describedby="msg-imp-hasta" /></label>
           </div>
-          <button class="btn btn-primario" type="submit">Registrar</button>
+          @if (tocadoImp.nombre && problemaImpuesto().nombre; as p) { <p class="msg-campo msg-error" id="msg-imp-nombre" role="alert"><span aria-hidden="true">✗</span> Nombre: {{ p }}</p> }
+          @if (tocadoImp.porcentaje && problemaImpuesto().porcentaje; as p) { <p class="msg-campo msg-error" id="msg-imp-pct" role="alert"><span aria-hidden="true">✗</span> Porcentaje: {{ p }}</p> }
+          @if (tocadoImp.desde && problemaImpuesto().desde; as p) { <p class="msg-campo msg-error" id="msg-imp-desde" role="alert"><span aria-hidden="true">✗</span> {{ p }}</p> }
+          @if (problemaImpuesto().hasta; as p) { <p class="msg-campo msg-error" id="msg-imp-hasta" role="alert"><span aria-hidden="true">✗</span> {{ p }}</p> }
+          <div class="acciones">
+            <button class="btn btn-primario" type="submit" [disabled]="impuestoInvalido()">Registrar</button>
+            <button class="btn" type="button" (click)="limpiarImpuesto()">Cancelar</button>
+          </div>
         </form>
       }
 
@@ -266,7 +283,7 @@ export class AdminComponent implements OnInit {
     { id: 'jobs', nombre: 'Jobs' },
     { id: 'observabilidad', nombre: 'Observabilidad' },
   ];
-  readonly jobs = ['expirar-solicitudes', 'completar-estancias', 'publicar-outbox', 'purgar-idempotencia'];
+  readonly jobs = ['completar-estancias', 'publicar-outbox', 'purgar-idempotencia'];
   readonly pestana = signal<Pestana>('indicadores');
   readonly cargando = signal(false);
   readonly error = signal<ErrorVista | null>(null);
@@ -274,21 +291,22 @@ export class AdminComponent implements OnInit {
   readonly total = signal(0);
   readonly offset = signal(0);
   readonly cat = signal<Catalogos | null>(null);
-  readonly reservas = signal<SolicitudHost[]>([]);
+  readonly reservas = signal<ReservaHost[]>([]);
   readonly resenas = signal<ResenaHost[]>([]);
   readonly rango = rangoCorto;
   filtroAloj = '';
   busquedaAloj = '';
   filtroReservas = '';
+  filtroPago = '';
   busqueda = '';
   tipoEvento = '';
   respuestas: Record<string, string> = {};
   nuevaAmenidad = '';
   nuevaCategoria = '';
-  nuevoTipo = '';
   nuevaProvincia = '';
   nuevaCiudad = '';
-  imp = { nombre: '', tipo: 'IVA', porcentaje: 8, vigente_desde: '', vigente_hasta: '', requiere_registro_turismo: true };
+  imp = { nombre: '', tipo: 'IVA', porcentaje: 8 as number | null, vigente_desde: '', vigente_hasta: '' };
+  tocadoImp = { nombre: false, porcentaje: false, desde: false };
 
   ngOnInit(): void {
     // ?tab=alojamientos al volver del editor
@@ -312,7 +330,7 @@ export class AdminComponent implements OnInit {
         this.listar(this.api.alojamientos(this.filtroAloj, this.busquedaAloj.trim(), 100, 0));
         break;
       case 'reservas':
-        this.cargar(this.catalogo.reservas(this.filtroReservas, 100, 0), (d) => this.reservas.set(d.items));
+        this.cargar(this.catalogo.reservas(this.filtroReservas, 100, 0, this.filtroPago), (d) => this.reservas.set(d.items));
         break;
       case 'resenas':
         this.cargar(this.catalogo.resenas(), (d) => this.resenas.set(d));
@@ -348,15 +366,19 @@ export class AdminComponent implements OnInit {
     this.accion(this.catalogo.publicar(Number(a['codigo']), publicar), publicar ? `«${nombre}» ya está publicado` : `«${nombre}» volvió a borrador`, 'alojamientos');
   }
 
-  async responder(s: SolicitudHost, acepta: boolean): Promise<void> {
-    const fechas = `(${rangoLargo(s.fecha_entrada, s.fecha_salida)})`;
-    const si = await this.confirmar.pedir(
-      acepta
-        ? { titulo: '¿Confirmar esta reserva pendiente?', mensaje: `La reserva de ${s.huesped} en «${s.alojamiento}» ${fechas} quedará confirmada y se registrará el cobro (simulado).`, confirmar: 'Confirmar reserva' }
-        : { titulo: '¿Rechazar esta reserva pendiente?', mensaje: `La reserva de ${s.huesped} en «${s.alojamiento}» ${fechas} quedará rechazada y esas fechas volverán a estar disponibles. No se puede deshacer.`, confirmar: 'Rechazar', tono: 'peligro' },
-    );
+  async confirmarPago(s: ReservaHost): Promise<void> {
+    const si = await this.confirmar.pedir({
+      titulo: '¿Confirmar el pago en efectivo?',
+      mensaje: `Confirma solo si ya recibiste ${this.usd(s.total)} en efectivo de ${s.huesped} por la reserva ${s.codigo} («${s.alojamiento}»). Quedará como pagada.`,
+      confirmar: 'Sí, lo recibí',
+      cancelar: 'Todavía no',
+    });
     if (!si) return;
-    this.accion(this.catalogo.responder(s.id, acepta), acepta ? `Reserva ${s.codigo} confirmada` : `Reserva ${s.codigo} rechazada`, 'reservas');
+    this.accion(this.catalogo.confirmarPago(s.id), `Pago de la reserva ${s.codigo} confirmado`, 'reservas');
+  }
+
+  private usd(n: number): string {
+    return `USD ${Number(n).toFixed(2)}`;
   }
 
   responderResena(r: ResenaHost): void {
@@ -386,16 +408,54 @@ export class AdminComponent implements OnInit {
     this.accion(this.api.estadoUsuario(this.texto(u['id']), !u['activo']), desactivar ? 'Usuario desactivado' : 'Usuario activado', 'usuarios');
   }
 
-  crear(tipo: 'amenities' | 'types' | 'cities', cuerpo: object): void {
+  crear(tipo: 'amenities' | 'cities', cuerpo: object): void {
     this.accion(this.api.crearCatalogo(tipo, cuerpo), 'Catálogo actualizado', 'catalogos');
   }
 
-  crearImpuesto(): void {
-    const { vigente_hasta, ...resto } = this.imp;
-    this.accion(this.api.crearImpuesto(vigente_hasta ? this.imp : resto), 'Tarifa registrada', 'impuestos');
+  /** Mismas reglas que ImpuestoDto del backend (que vuelve a validar). */
+  problemaImpuesto(): { nombre?: string; porcentaje?: string; desde?: string; hasta?: string } {
+    const n = this.imp.nombre.trim();
+    return {
+      nombre: !n ? 'escribe un nombre' : n.length < 3 || n.length > 80 ? 'debe tener entre 3 y 80 caracteres' : undefined,
+      porcentaje: motivoRango(this.imp.porcentaje, 0, 100, { obligatorio: true, decimales: 2, unidad: '%' }) ?? undefined,
+      desde: this.imp.vigente_desde ? undefined : 'Elige la fecha "Desde"',
+      hasta: this.imp.vigente_hasta && this.imp.vigente_desde && this.imp.vigente_hasta < this.imp.vigente_desde ? '"Hasta" no puede ser antes de "Desde"' : undefined,
+    };
+  }
+  impuestoInvalido(): boolean {
+    return Object.values(this.problemaImpuesto()).some(Boolean);
+  }
+  limpiarImpuesto(): void {
+    this.imp = { nombre: '', tipo: 'IVA', porcentaje: 8, vigente_desde: '', vigente_hasta: '' };
+    this.tocadoImp = { nombre: false, porcentaje: false, desde: false };
   }
 
-  cerrarImpuesto(t: Fila): void {
+  crearImpuesto(): void {
+    if (this.impuestoInvalido()) {
+      this.tocadoImp = { nombre: true, porcentaje: true, desde: true };
+      return;
+    }
+    const { vigente_hasta, ...resto } = { ...this.imp, nombre: this.imp.nombre.trim(), porcentaje: Number(this.imp.porcentaje) };
+    this.accion(this.api.crearImpuesto(vigente_hasta ? { ...resto, vigente_hasta } : resto), 'Tarifa registrada', 'impuestos');
+  }
+
+  problemaCiudad(): { provincia: string | null; ciudad: string | null } {
+    return { provincia: motivoNombreLugar(this.nuevaProvincia, 'la provincia', 3, 40), ciudad: motivoNombreLugar(this.nuevaCiudad, 'la ciudad', 2, 80) };
+  }
+  crearCiudad(): void {
+    const p = this.problemaCiudad();
+    if (p.provincia || p.ciudad) return;
+    this.crear('cities', { provincia: this.nuevaProvincia.trim(), nombre: this.nuevaCiudad.trim() });
+  }
+
+  async cerrarImpuesto(t: Fila): Promise<void> {
+    const si = await this.confirmar.pedir({
+      titulo: '¿Cerrar la vigencia de esta tarifa?',
+      mensaje: `«${this.texto(t['nombre'])}» dejará de aplicarse a partir de mañana. Las tarifas no se reabren: si la necesitas otra vez, registra una nueva.`,
+      confirmar: 'Cerrar vigencia',
+      tono: 'peligro',
+    });
+    if (!si) return;
     const hoy = new Date().toISOString().slice(0, 10);
     this.accion(this.api.cerrarImpuesto(Number(t['id']), hoy), 'Vigencia cerrada', 'impuestos');
   }

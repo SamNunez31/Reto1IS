@@ -5,7 +5,7 @@ import * as L from 'leaflet';
 import { EMPTY, expand, forkJoin, map, of, reduce, switchMap } from 'rxjs';
 import { DetalleAlojamiento } from '../../core/models/api.models';
 import { AdminService, Indicadores } from '../../core/services/admin.service';
-import { AnfitrionService, SolicitudHost } from '../../core/services/anfitrion.service';
+import { AnfitrionService, ReservaHost } from '../../core/services/anfitrion.service';
 import { leerError } from '../../core/services/api-base';
 import { CatalogoService } from '../../core/services/catalogo.service';
 import { CalificacionComponent } from '../../shared/calificacion';
@@ -369,7 +369,7 @@ export class DashboardAdminComponent implements OnInit, OnDestroy {
     pagina(0)
       .pipe(
         expand((r) => (r.items.length && r.offset + r.items.length < r.total ? pagina(r.offset + r.items.length) : EMPTY)),
-        reduce((todas, r) => todas.concat(r.items), [] as SolicitudHost[]),
+        reduce((todas, r) => todas.concat(r.items), [] as ReservaHost[]),
       )
       .subscribe({
         next: (reservas) => {
@@ -451,7 +451,7 @@ export class DashboardAdminComponent implements OnInit, OnDestroy {
 }
 
 /** Agrupa reservas CONFIRMADA/COMPLETADA por mes de creación (12 meses hasta `hoy`, incluidos los vacíos). */
-export function agruparPorMes(reservas: Pick<SolicitudHost, 'estado' | 'created_at' | 'total'>[], hoy: Date): VentaMes[] {
+export function agruparPorMes(reservas: Pick<ReservaHost, 'estado' | 'created_at' | 'total'>[], hoy: Date): VentaMes[] {
   const meses: VentaMes[] = [];
   for (let i = 11; i >= 0; i--) {
     const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);

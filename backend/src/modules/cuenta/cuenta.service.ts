@@ -5,7 +5,7 @@ import { conflicto, invalido, noEncontrado, prohibido } from '../../common/probl
 import { problemaResena } from '../../common/validation/texto-libre';
 import { DbService } from '../../database/db.service';
 import { OrderDetail } from '../alojamientos/dto/respuestas.dto';
-import { FilaOrden, OrdenesService, SQL_ORDEN } from '../alojamientos/services/ordenes.service';
+import { FilaOrden, OrdenesService, SQL_ORDEN, sqlPago } from '../alojamientos/services/ordenes.service';
 import { ActualizarPerfilDto, CrearResenaDto } from './dto/cuenta.dto';
 
 export interface Perfil {
@@ -26,6 +26,10 @@ export interface MiOrden extends OrderDetail {
   estado_interno: string;
   portada: string | null;
   tiene_resena: boolean;
+  /** TARJETA | EFECTIVO */
+  metodo_pago: string | null;
+  /** PENDIENTE (efectivo aún no recibido) | APROBADO */
+  estado_pago: string | null;
 }
 
 export interface Liquidacion {
@@ -78,9 +82,9 @@ export class CuentaService {
 
   /** Mis reservas (v_orden), más recientes primero. */
   async misOrdenes(ownerId: string, limit: number, offset: number): Promise<Listado<MiOrden>> {
-    const filas = await this.db.query<FilaOrden & { portada: string | null; tiene_resena: boolean; total: number }>(
+    const filas = await this.db.query<FilaOrden & Pick<MiOrden, 'portada' | 'tiene_resena' | 'metodo_pago' | 'estado_pago'> & { total: number }>(
       `SELECT x.*, r.portada, EXISTS (SELECT 1 FROM resena rs WHERE rs.reserva_id = x.order_id) AS tiene_resena,
-              count(*) OVER()::int AS total
+              ${sqlPago('x.order_id')}, count(*) OVER()::int AS total
          FROM (${SQL_ORDEN} WHERE o.owner_id = $1) x
          JOIN alojamiento a ON a.codigo = x.accommodation_id
          JOIN v_alojamiento_resumen r ON r.id = a.id
@@ -88,7 +92,10 @@ export class CuentaService {
       [ownerId, limit, offset],
     );
     return {
-      items: filas.map((f) => ({ ...this.ordenes.aDetalle(f), estado_interno: f.estado_interno, portada: f.portada, tiene_resena: f.tiene_resena })),
+      items: filas.map((f) => ({
+        ...this.ordenes.aDetalle(f), estado_interno: f.estado_interno, portada: f.portada, tiene_resena: f.tiene_resena,
+        metodo_pago: f.metodo_pago, estado_pago: f.estado_pago,
+      })),
       total: filas[0]?.total ?? 0,
       limit,
       offset,

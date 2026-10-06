@@ -201,17 +201,49 @@ export const vLongitud = (min: number, max: number, campo: string): ValidatorFn 
   return null;
 };
 
-/** Número entre min y max; `entero` exige número sin decimales. Vacío = error solo si `obligatorio`. */
-export const vRango = (min: number, max: number, opciones: { entero?: boolean; obligatorio?: boolean; unidad?: string } = {}): ValidatorFn => (c) => {
-  const crudo = c.value;
-  if (crudo === null || crudo === undefined || `${crudo}`.trim() === '') return opciones.obligatorio ? { mensaje: 'Completa este campo' } : null;
-  const n = Number(crudo);
+export interface OpcionesRango { entero?: boolean; obligatorio?: boolean; unidad?: string; /** Máximo de decimales (precios: 2). */ decimales?: number }
+
+/**
+ * Número entre min y max; `entero` exige número sin decimales y `decimales` limita las cifras decimales.
+ * Acepta number o texto con punto o coma decimal. Vacío = error solo si `obligatorio`. null = válido.
+ */
+export function motivoRango(crudo: unknown, min: number, max: number, opciones: OpcionesRango = {}): string | null {
+  if (crudo === null || crudo === undefined || `${crudo}`.trim() === '') return opciones.obligatorio ? 'Completa este campo' : null;
+  const txt = `${crudo}`.trim().replace(',', '.');
+  const n = typeof crudo === 'number' ? crudo : /^-?\d+(\.\d+)?$/.test(txt) ? Number(txt) : NaN;
   const u = opciones.unidad ? ` ${opciones.unidad}` : '';
-  if (Number.isNaN(n)) return { mensaje: 'Escribe un número' };
-  if (opciones.entero && !Number.isInteger(n)) return { mensaje: 'Escribe un número entero, sin decimales' };
-  if (n < min || n > max) return { mensaje: `Debe estar entre ${min} y ${max}${u}` };
+  if (Number.isNaN(n)) return 'Escribe solo números';
+  if (opciones.entero && !Number.isInteger(n)) return 'Escribe un número entero, sin decimales';
+  if (opciones.decimales !== undefined && (txt.split('.')[1] ?? '').length > opciones.decimales) return `Usa máximo ${opciones.decimales} decimales`;
+  if (n < min || n > max) return `Debe estar entre ${min} y ${max}${u}`;
   return null;
-};
+}
+export const vRango = (min: number, max: number, opciones: OpcionesRango = {}): ValidatorFn => (c) => err(motivoRango(c.value, min, max, opciones));
+
+/** Precio en USD: mayor que 0 (mínimo `min`), con hasta 2 decimales. */
+export const motivoPrecio = (v: unknown, min = 1, max = 100000, obligatorio = true): string | null =>
+  motivoRango(v, min, max, { decimales: 2, obligatorio, unidad: 'USD' });
+
+/** Nombre propio que no es de persona (ciudad, provincia): letras, espacio, apóstrofe y guion; sin dígitos ni símbolos. */
+export function motivoNombreLugar(v: string, que: string, min = 2, max = 80): string | null {
+  const t = normalizarNombre(v);
+  if (!t) return `Escribe ${que}`;
+  if (/\d/.test(t)) return 'No puede tener números';
+  if (!NOMBRE_PERSONA.test(t)) return 'Solo letras, espacios, guion (-) y apóstrofe (\')';
+  if (t.length < min || t.length > max) return `Debe tener entre ${min} y ${max} caracteres`;
+  return null;
+}
+
+/** Razón social: 2 a 160 caracteres; letras, espacios, punto, coma, "&", guion y apóstrofe. Sin dígitos. */
+export const RAZON_SOCIAL = /^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ '’.,&-]*$/;
+export function motivoRazon(v: string): string | null {
+  const t = normalizarNombre(v);
+  if (!t) return 'Escribe la razón social';
+  if (/\d/.test(t)) return 'La razón social no puede tener números';
+  if (!RAZON_SOCIAL.test(t)) return 'La razón social solo puede tener letras, espacios, punto, coma, "&", guion y apóstrofe';
+  if (t.length < 2 || t.length > LIMITES.razonSocial) return `La razón social debe tener entre 2 y ${LIMITES.razonSocial} caracteres`;
+  return null;
+}
 
 /** Selección obligatoria (tarjetas, desplegables). */
 export const vElegir = (mensaje: string): ValidatorFn => (c) => (c.value === null || c.value === undefined || c.value === '' ? { mensaje } : null);

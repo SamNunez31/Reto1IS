@@ -94,12 +94,30 @@ export class DatosClienteDto {
   business_name?: string;
 }
 
+/** Extensión (no está en el YAML del contrato): método de pago de la orden. */
+export enum MetodoPago {
+  CARD = 'CARD',
+  CASH = 'CASH',
+}
+
 /** OrderCreateRequest */
 export class OrderCreateRequestDto {
   @IsUUID()
   order_preview_id: string;
 
-  /** Referencia del pago simulado: ^PAY-[A-Z0-9]{6,}$ (se valida en el servicio para responder PAYMENT_REFERENCE_INVALID) */
+  /**
+   * Extensión opcional: CARD (por defecto, tarjeta simulada) o CASH (efectivo al llegar: la reserva queda
+   * CONFIRMADA y su pago PENDIENTE hasta que el admin confirma que lo recibió).
+   */
+  @IsOptional()
+  @IsEnum(MetodoPago, { message: 'payment_method debe ser CARD o CASH' })
+  payment_method?: MetodoPago;
+
+  /**
+   * Referencia del pago simulado: ^PAY-[A-Z0-9]{6,}$ (se valida en el servicio para responder PAYMENT_REFERENCE_INVALID).
+   * Obligatoria con tarjeta; con efectivo no se usa.
+   */
+  @ValidateIf((o: OrderCreateRequestDto) => o.payment_method !== MetodoPago.CASH)
   @IsString()
   @MaxLength(60)
   payment_reference: string;

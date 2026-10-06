@@ -28,7 +28,7 @@
 | Búsqueda | `POST /api/v1/search` (público, `X-Device-Fingerprint` obligatorio) | `fn_buscar_alojamientos` + `alojamiento.codigo`; cursor opaco base64url | ✅ probado |
 | Disponibilidad | `POST /availability` | `fn_cotizar` por unidad activa + cupo ≥ habitaciones; `politica_cancelacion_regla` | ✅ probado |
 | Disponibilidad múltiple | `POST /bulk-availability` | igual, producto más barato por alojamiento | ✅ (prueba pendiente, ver PENDIENTES) |
-| Detalles | `POST /details` | `alojamiento`, `v_alojamiento_resumen`, `alojamiento_aeropuerto`, `amenidad`, `imagen_alojamiento`, `unidad_alojamiento` | ✅ |
+| Detalles | `POST /details` | `alojamiento`, `v_alojamiento_resumen`, `amenidad`, `imagen_alojamiento`, `unidad_alojamiento` | ✅ |
 | Cambios | `POST /details/changes` (`alojamientos:read`) | `alojamiento.updated_at` | ✅ |
 | Cadenas | `POST /chains` | — (devuelve `[]`) | ✅ |
 | Constantes | `POST /constants` | catálogos + enums `provincia_ec`, `estado_reserva` | ✅ |
@@ -60,23 +60,22 @@ flowchart LR
     J --> BUS[Bus en memoria] --> AUD[Consumidor auditoría<br/>idempotente]
   end
   BE --- BE_mod
-  DB -->|SSL, pooler| PG[(Supabase PostgreSQL<br/>schema booking · 27 tablas<br/>fn_* · v_* · triggers)]
+  DB -->|SSL, pooler| PG[(Supabase PostgreSQL<br/>schema booking · 25 tablas<br/>fn_* · v_* · triggers)]
 ```
 
 - **La lógica crítica vive en la BD**: precios, cupo (con `FOR UPDATE`, sin sobreventa), máquina de estados, penalidades y eventos de negocio (triggers que escriben en `evento_outbox`). El backend **llama** a `fn_*` y consulta `v_*`; no reimplementa reglas.
-- **Jobs**: `fn_expirar_solicitudes` (cada 5 min), `fn_completar_estancias` (cada hora), publicador del outbox (cada 5 s), purga de `idempotencia` (diaria). Cada job corre en una transacción con `pg_try_advisory_xact_lock` para que solo una instancia lo ejecute.
+- **Jobs**: `fn_completar_estancias` (cada hora), publicador del outbox (cada 5 s), purga de `idempotencia` (diaria). (`fn_expirar_solicitudes` sigue en la BD, sin uso: ya no hay reservas por solicitud.) Cada job corre en una transacción con `pg_try_advisory_xact_lock` para que solo una instancia lo ejecute.
 - **Outbox**: los triggers escriben el evento en la **misma transacción** que el cambio; el publicador lee `publicado_en IS NULL … FOR UPDATE SKIP LOCKED`, lo entrega al bus en memoria (consumidor de auditoría idempotente por `evento_id`) y marca `publicado_en`.
 
 **¿Por qué monolito modular ahora?** Un solo equipo, un solo dominio, una BD, plazo corto y presupuesto gratuito. Los módulos (`alojamientos`, `cuenta`, `host`, `admin`, `auth`, `jobs`) tienen fronteras claras y solo se comunican por servicios, de modo que separarlos luego es mecánico (ver §6).
 
-## 4. Modelo de datos (27 tablas, schema `booking`)
+## 4. Modelo de datos (25 tablas, schema `booking`)
 
 ```mermaid
 erDiagram
   usuario ||--o{ token_usuario : tiene
   usuario ||--o{ alojamiento : publica
   usuario ||--o{ reserva : reserva
-  ciudad ||--o{ aeropuerto : tiene
   ciudad ||--o{ alojamiento : ubica
   tipo_alojamiento ||--o{ alojamiento : clasifica
   politica_cancelacion ||--o{ politica_cancelacion_regla : tramos
@@ -85,8 +84,6 @@ erDiagram
   alojamiento ||--o{ unidad_alojamiento : ofrece
   alojamiento ||--o{ alojamiento_amenidad : tiene
   amenidad ||--o{ alojamiento_amenidad : en
-  alojamiento ||--o{ alojamiento_aeropuerto : cerca
-  aeropuerto ||--o{ alojamiento_aeropuerto : de
   alojamiento ||--o{ imagen_alojamiento : fotos
   unidad_alojamiento ||--o{ calendario_unidad : excepciones
   alojamiento ||--o{ reserva : recibe
@@ -108,37 +105,37 @@ erDiagram
 
 `impuesto_tarifa` (IVA/servicio con vigencia, feriados) e `idempotencia` (clave por `sub`) no tienen FK: se consultan por fecha y por propietario respectivamente.
 
-**Nota de normalización.** Modelo normalizado: las relaciones muchos-a-muchos son **uniones binarias** (`alojamiento_amenidad`, `alojamiento_aeropuerto`, `webhook_evento`) y no se guardan listas en columnas. Los **totales no se almacenan**: salen de vistas (`v_reserva_total`, `v_factura`, `v_cancelacion_liquidacion`), así no hay datos derivados que se desincronicen. Las dos excepciones son **a propósito**: `orden_preview` congela el precio cotizado 15 min (es un *snapshot* que permite detectar `PRICE_CHANGED`) e `idempotencia` guarda la respuesta para reproducirla; ambos son registros históricos, no duplicación de verdad. `factura` copia los datos del comprador por obligación tributaria (la factura no cambia si el usuario edita su perfil).
+**Nota de normalización.** Modelo normalizado: las relaciones muchos-a-muchos son **uniones binarias** (`alojamiento_amenidad`, `webhook_evento`) y no se guardan listas en columnas. Los **totales no se almacenan**: salen de vistas (`v_reserva_total`, `v_factura`, `v_cancelacion_liquidacion`), así no hay datos derivados que se desincronicen. Las dos excepciones son **a propósito**: `orden_preview` congela el precio cotizado 15 min (es un *snapshot* que permite detectar `PRICE_CHANGED`) e `idempotencia` guarda la respuesta para reproducirla; ambos son registros históricos, no duplicación de verdad. `factura` copia los datos del comprador por obligación tributaria (la factura no cambia si el usuario edita su perfil).
 
-**Código público del alojamiento.** El contrato identifica al alojamiento con un **entero**; la BD usa UUID como clave. Ese entero es la columna `alojamiento.codigo` (identity desde 1001, única, no editable). Hasta el 2026-10-05 vivía en una tabla 1 a 1 aparte (`alojamiento_codigo`, 29 tablas); se fundió en `alojamiento` con `database/migracion_codigo_en_alojamiento.sql`, conservando todos los códigos existentes.
+**Código público del alojamiento.** El contrato identifica al alojamiento con un **entero**; la BD usa UUID como clave. Ese entero es la columna `alojamiento.codigo` (identity desde 1001, única, no editable). Hasta el 2026-10-05 vivía en una tabla 1 a 1 aparte (`alojamiento_codigo`); se fundió en `alojamiento` con `database/migracion_codigo_en_alojamiento.sql`, conservando todos los códigos existentes.
 
-**Sin denuncias (27 tablas).** Al simplificar el alcance, la tabla `reporte` y el tipo `estado_reporte` se eliminaron con `database/migracion_sin_reportes.sql`. Antes se verificó que solo dependían de ellos la columna `reportes_pendientes` de `v_admin_indicadores` (la vista se recreó sin ella) y sus dos triggers; ninguna FK ni política RLS. Se conservan el tipo `motivo_reporte` (sin uso, para la evolución futura) y los eventos históricos `AlojamientoReportado`/`UsuarioReportado` del outbox. No se borró ninguna columna ni valor de enum: `alojamiento.anfitrion_id` sigue (el admin es el dueño de los alojamientos nuevos; `migracion_admin_dueno.sql` permite que un ADMIN lo sea) y `modo_reserva` conserva `SOLICITUD` aunque ya no se use (`datos_modo_inmediato.sql` pasó los alojamientos demo a `INSTANTANEA`).
+**Sin denuncias.** Al simplificar el alcance, la tabla `reporte` y el tipo `estado_reporte` se eliminaron con `database/migracion_sin_reportes.sql`. Antes se verificó que solo dependían de ellos la columna `reportes_pendientes` de `v_admin_indicadores` (la vista se recreó sin ella) y sus dos triggers; ninguna FK ni política RLS. Se conservan el tipo `motivo_reporte` (sin uso, para la evolución futura) y los eventos históricos `AlojamientoReportado`/`UsuarioReportado` del outbox. No se borró ninguna columna ni valor de enum: `alojamiento.anfitrion_id` sigue (el admin es el dueño de los alojamientos nuevos; `migracion_admin_dueno.sql` permite que un ADMIN lo sea) y `modo_reserva` conserva `SOLICITUD` aunque ya no se use (`datos_modo_inmediato.sql` pasó los alojamientos demo a `INSTANTANEA`).
+
+**Sin aeropuertos (25 tablas).** Se eliminaron `aeropuerto` y `alojamiento_aeropuerto` con `database/migracion_sin_aeropuertos.sql`, y `fn_buscar_alojamientos` perdió los parámetros `p_aeropuerto` y `p_max_km` y las columnas de aeropuerto (ahora ordena por precio). Se conservan las ciudades (Tababela, Baltra, etc.) y la amenidad «Transporte desde/hacia el aeropuerto». En el backend y el frontend se quitaron el endpoint `POST /admin/catalogs/airports`, los filtros `airport` y `max_airport_km` de `/search`, el orden `distancia`, el campo `airports` de `/details` y `/constants`, y la sección «Aeropuertos cercanos» del formulario del administrador y de la pantalla de detalle.
 
 **Tablas por módulo** (cada una tiene además su `COMMENT ON TABLE` en la BD):
 
 | Módulo | Tabla | Para qué sirve |
 |---|---|---|
 | Usuarios y seguridad | `usuario` | Cuentas de huéspedes y del administrador (dueño del catálogo y emisor de sus facturas), con datos de acceso y, opcionalmente, de facturación. |
-| | `token_usuario` | Tokens de un solo uso (recuperar clave); solo se guarda su hash y su vencimiento. |
+| | `token_usuario` | Tokens de un solo uso (recuperar clave; esa opción está deshabilitada en la interfaz); solo se guarda su hash y su vencimiento. |
 | | `idempotencia` | Respuestas guardadas por `Idempotency-Key` para no duplicar crear, modificar o cancelar. |
 | Catálogo y alojamientos | `ciudad` | Localidades por provincia, para buscar y filtrar. |
-| | `aeropuerto` | Aeropuertos (IATA) para el filtro "cerca del aeropuerto". |
-| | `tipo_alojamiento` | Tipos: Hotel, Hostal, Cabaña, etc. |
+| | `tipo_alojamiento` | Catálogo cerrado de 5 tipos: Hotel, Hostal, Cabaña, Casa y Departamento. |
 | | `amenidad` | Comodidades ofrecibles, agrupadas por categoría. |
 | | `alojamiento` | El anuncio: datos, ubicación, reglas, política, estado y `codigo` público. |
 | | `alojamiento_amenidad` | Qué amenidades tiene cada alojamiento (puente). |
-| | `alojamiento_aeropuerto` | Aeropuertos cercanos con distancia, tiempo y transfer. |
 | | `imagen_alojamiento` | Fotos (URL) con orden y una portada. |
 | Disponibilidad y precios | `unidad_alojamiento` | Lo que se reserva: tipo de habitación (con cantidad) o propiedad completa, con precio base. |
 | | `calendario_unidad` | Excepciones por día: precio especial o cantidad a la venta (0 = cerrada). |
 | | `politica_cancelacion` | FLEXIBLE, MODERADA, NO_REEMBOLSABLE con su texto. |
 | | `politica_cancelacion_regla` | Tramos: horas de anticipación → % de penalidad. |
-| | `impuesto_tarifa` | IVA y cargo de servicio con vigencia (incluye feriados). |
+| | `impuesto_tarifa` | IVA y cargo de servicio con vigencia (incluye feriados con IVA reducido, que dependen solo de sus fechas). |
 | | `orden_preview` | Cotización congelada 15 min entre `preview` y `create`. |
 | Reservas y pagos | `reserva` | Cabecera: huésped, alojamiento, fechas, huéspedes, política aceptada y estado. |
 | | `reserva_detalle` | Líneas: unidades reservadas y montos acordados. |
 | | `cancelacion` | Quién canceló, cuándo y por qué (la liquidación sale de una vista). |
-| | `pago` | Cobros y reembolsos simulados. |
+| | `pago` | Cobros y reembolsos simulados; `metodo` = TARJETA o EFECTIVO (el efectivo queda PENDIENTE hasta que el admin lo confirma). |
 | | `factura` | Factura simulada con copia de los datos del comprador. |
 | Reseñas | `resena` | Nota 1–10 y comentario del huésped tras una estancia COMPLETADA (una por reserva), con respuesta opcional del alojamiento. |
 | Integración y eventos | `evento_outbox` | Eventos de negocio escritos en la misma transacción que el cambio. |
@@ -174,7 +171,7 @@ Validaciones de Ecuador: cédula (módulo 10), RUC (13 dígitos, persona natural
 
 | Servicio | Tablas que se llevaría | Motivo |
 |---|---|---|
-| Catálogo y búsqueda | alojamiento, unidad, imágenes, amenidades, aeropuertos, ciudad | lectura masiva → réplica/índice de búsqueda |
+| Catálogo y búsqueda | alojamiento, unidad, imágenes, amenidades, ciudad | lectura masiva → réplica/índice de búsqueda |
 | Inventario y precios | calendario_unidad, impuesto_tarifa | cálculo de cupo y precio, alta concurrencia |
 | Reservas | reserva, reserva_detalle, orden_preview, cancelacion, idempotencia | transaccional, corazón del negocio |
 | Pagos y facturación | pago, factura | integraciones externas (pasarela, SRI) |
@@ -228,6 +225,7 @@ Flujo del huésped: **ficha → datos de facturación → pago con tarjeta → c
 - **Cotización congelada:** al abrir el checkout se llama `POST /orders/preview` (precio garantizado 15 min; el resumen muestra "Precio garantizado por mm:ss").
 - **Datos de facturación:** Cédula (módulo 10), RUC, Pasaporte o Consumidor final. Viajan en `customer_details` de `POST /orders/create` con tres campos **opcionales de extensión** (`document_type`, `document_number`, `business_name`); el YAML oficial del contrato no se modificó y `contract:check` sigue 17/17. En la **misma transacción** que `fn_crear_orden`, el backend reemplaza los datos del comprador de la factura emitida. La cédula/RUC **no se guarda en el perfil** (el perfil ya no la pide ni la muestra; las columnas de `usuario` siguen existiendo por compatibilidad).
 - **Tarjeta (simulada):** número (Luhn, longitud, marca Visa/Mastercard/Amex), titular, caducidad MM/AA y CVV se validan **solo en el navegador**; nunca se envían, guardan ni registran. Al backend solo llega `payment_reference` (`PAY-XXXXXXXX`). Un rechazo usa el prefijo `PAY-DECLINED…`, que el backend responde con `402 PAYMENT_NOT_AUTHORIZED` **antes** de crear la orden (la cotización sigue vigente y se puede reintentar).
+- **Efectivo:** `POST /orders/create` acepta la extensión opcional `payment_method` (`CARD` por defecto | `CASH`; otro valor → 400). Con `CASH` no se pide `payment_reference`: la reserva queda **CONFIRMADA** al instante y, en la misma transacción que `fn_crear_orden`, su cobro pasa a `estado = PENDIENTE`, `metodo = EFECTIVO` (columna `pago.metodo`, `database/migracion_pago_metodo.sql`). La factura se emite igual. Si se modifica, la diferencia también queda pendiente. Al cancelar, `v_cancelacion_liquidacion` solo cuenta cobros APROBADO, así que **no hay reembolso**. El admin ve "Pago" en Administración → Reservas (`GET /host/orders?estado_pago=PENDIENTE|APROBADO`, `GET /host/orders/:id`) y registra el cobro con `POST /host/orders/:id/confirm-payment` (solo ADMIN; idempotente: si ya estaba confirmado responde 200 con `ya_confirmado: true`; 409 si no es efectivo o la reserva está cancelada; evento `pago_confirmado` en el log `auditoria`). El contrato oficial no se modificó (`contract:check` 17/17).
 - **Tarjetas de prueba** (ayuda visible solo con `?demo=1`): `4242 4242 4242 4242` aprobada · `4000 0000 0000 0002` rechazada · `4000 0000 0000 9995` fondos insuficientes. Cualquier otra con Luhn válido se aprueba.
 - **Confirmación inmediata:** todas las reservas quedan CONFIRMADAS al aprobarse el pago (ya no hay reserva "por solicitud"). El **emisor** de la factura es el dueño del alojamiento; para el catálogo de Posada EC, el administrador. Su cuenta demo no tenía documento y la factura salía sin identificación del emisor, por eso `database/datos_admin_emisor.sql` le asigna un **RUC ficticio** (`1799999999001`, marcado como demo).
 
@@ -279,8 +277,10 @@ docker compose down -v      # borra contenedor y volumen (la próxima vez se ree
 
 - `database.module.ts` (`usarSsl`) usa SSL solo si el host **no** es `localhost`/`127.0.0.1`/`::1`: Docker sin TLS, Supabase con TLS.
 - Healthcheck `pg_isready -U postgres -d booking_db` (cada 5 s, 20 reintentos). Durante la inicialización `pg_isready` puede responder antes de que terminen los scripts: el indicador fiable es `PostgreSQL init process complete` en los logs.
-- **Probado el 2026-10-05** (Postgres 16 limpio): los tres scripts corren sin errores; quedan 28 tablas (verificado de nuevo desde cero tras fundir `alojamiento_codigo` en `alojamiento`), 17 funciones `fn_*`, 10 vistas `v_*`, 10 usuarios, 20 alojamientos y 10 reservas demo. Con el backend apuntando al contenedor pasaron `/health` (`db: up`), login, `/search`, `/availability`, `orders/preview`, `orders/create` (incluida la repetición con la misma `Idempotency-Key`, que devuelve la misma orden), `orders/{id}/cancel` y `/admin/indicators`. En los logs aparecen los eventos de auditoría `login_ok`, `login_fallido` (correo enmascarado), `acceso_401` y `acceso_403`, sin contraseñas ni tokens.
+- **Probado el 2026-10-05** (Postgres 16 limpio): los tres scripts corren sin errores (verificado de nuevo desde cero tras fundir `alojamiento_codigo` en `alojamiento`), 17 funciones `fn_*`, 10 vistas `v_*`, 10 usuarios, 20 alojamientos y 10 reservas demo. Con el backend apuntando al contenedor pasaron `/health` (`db: up`), login, `/search`, `/availability`, `orders/preview`, `orders/create` (incluida la repetición con la misma `Idempotency-Key`, que devuelve la misma orden), `orders/{id}/cancel` y `/admin/indicators`. En los logs aparecen los eventos de auditoría `login_ok`, `login_fallido` (correo enmascarado), `acceso_401` y `acceso_403`, sin contraseñas ni tokens.
 - **Probado el 2026-10-05 (simplificación)**: en bases temporales (copia de `booking_db` con `pg_dump`, nunca la real) las migraciones `migracion_admin_dueno.sql`, `migracion_sin_reportes.sql`, `datos_modo_inmediato.sql` y `datos_admin_emisor.sql` corren dos veces seguidas sin error (idempotentes) y dejan 27 tablas; los scripts 01→02→03 desde cero también dejan 27 tablas. Un backend temporal contra esa copia pasó 49 pruebas: huésped → 403 en `/admin/…` y en las rutas de catálogo; registro con `rol` → 400; ADMIN crea ("Todo el alojamiento" y "Varios tipos"), edita (propios y ajenos), publica, despublica, suspende y reactiva; reserva con pago aprobado → CONFIRMADA con factura emitida por Posada EC; reseñas rechazadas por groserías, repeticiones, contactos y largo, y aceptadas una sola vez tras una estancia completada.
+- **Probado el 2026-10-06 (limpieza)**: con PostgreSQL embebido (PGlite, en memoria; sin tocar `booking_db` ni Supabase), los scripts 01→02→03 actuales dejan 27 tablas, 5 tipos, 0 reservas PENDIENTE y la demo sin registro/LUAF. Sobre una BD con los scripts anteriores más una solicitud PENDIENTE y un feriado con la condición antigua, `datos_sin_pendientes.sql`, `datos_iva_feriados.sql` y `datos_tipos_alojamiento.sql` corren dos veces sin error: la PENDIENTE queda EXPIRADA (con su evento), el IVA del feriado (8 %) aplica a un alojamiento sin registro ni LUAF y "Hostería Baños Termas" → Hotel, "Habitación Privada Centro Cuenca" → Casa.
+- **Probado el 2026-10-06 (sin aeropuertos)**: sobre la BD `booking_db` de Docker (con respaldo `pg_dump` previo) se aplicaron en orden `migracion_admin_dueno`, `migracion_sin_reportes`, `migracion_pago_metodo`, `datos_modo_inmediato`, `datos_tipos_alojamiento`, `datos_sin_pendientes`, `datos_iva_feriados`, `datos_admin_emisor` y `migracion_sin_aeropuertos` sin errores: quedan 25 tablas, 5 tipos, 0 reservas PENDIENTE y `fn_buscar_alojamientos` responde sin parámetros de aeropuerto. En un contenedor temporal, los scripts 01→02→03 desde cero también dejan 25 tablas y 20 alojamientos sin errores. El backend compila (`tsc --noEmit`) y el frontend compila (`ng build`). **No** se probó en el navegador ni contra Supabase: la migración `migracion_sin_aeropuertos.sql` debe ejecutarse allí antes de desplegar.
 - Docker es **solo para desarrollo**. En producción la BD es **Supabase** (backups, pooler y panel administrados); el backend corre en Render sin contenedor propio.
 
 ## 13. Dependencias vulnerables

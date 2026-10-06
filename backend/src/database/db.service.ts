@@ -4,7 +4,7 @@ import { DataSource, QueryRunner } from 'typeorm';
 /** Ejecuta SQL parametrizado ($1, $2...) dentro de una conexión o transacción. */
 export type Consulta = <T>(sql: string, params?: unknown[]) => Promise<T[]>;
 
-export const TABLAS_ESPERADAS = 27;
+export const TABLAS_ESPERADAS = 25;
 
 /**
  * Acceso a datos: SQL parametrizado sobre el DataSource de TypeORM.
@@ -67,13 +67,13 @@ export class DbService implements OnApplicationBootstrap {
     return (r.records ?? []) as T[];
   }
 
-  /** Verificación de arranque: el schema booking debe tener las 27 tablas. */
+  /** Verificación de arranque: el schema booking debe tener las 25 tablas. */
   async onApplicationBootstrap(): Promise<void> {
     const fila = await this.uno<{ n: number }>(
       `SELECT count(*)::int AS n FROM information_schema.tables WHERE table_schema = 'booking' AND table_type = 'BASE TABLE'`,
     );
     if (fila?.n !== TABLAS_ESPERADAS) {
-      const msg = `La BD tiene ${fila?.n ?? 0} tablas en booking (se esperaban ${TABLAS_ESPERADAS}). Si tiene 28 (con la tabla reporte), ejecuta database/migracion_admin_dueno.sql y database/migracion_sin_reportes.sql; si tiene 29, ejecuta antes database/migracion_codigo_en_alojamiento.sql; si tiene 22, ejecuta 03_integracion.sql.`;
+      const msg = `La BD tiene ${fila?.n ?? 0} tablas en booking (se esperaban ${TABLAS_ESPERADAS}). Si aún existen las tablas aeropuerto y alojamiento_aeropuerto, ejecuta database/migracion_sin_aeropuertos.sql; si aún existe la tabla reporte, ejecuta database/migracion_admin_dueno.sql y database/migracion_sin_reportes.sql; si aún existe alojamiento_codigo, ejecuta antes database/migracion_codigo_en_alojamiento.sql; si faltan las tablas de integración, ejecuta 03_integracion.sql.`;
       this.logger.error(msg);
       throw new Error(msg);
     }

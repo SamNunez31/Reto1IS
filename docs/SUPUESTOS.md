@@ -8,7 +8,7 @@
 | 4 | `product_id` = `base64url(unidad_uuid\|checkin\|checkout)` (opaco) | `OrderPreviewRequest` no trae fechas |
 | 5 | Huéspedes = `number_of_adults + children.length`; `number_of_rooms` = unidades del mismo tipo | El contrato separa niños y habitaciones |
 | 6 | `/chains` devuelve `[]`; `bundles` = `[]`; `filters.meal_plan` se ignora | El prototipo no maneja cadenas ni planes de comida |
-| 7 | `/details` y `/reviews` aceptan `page`/`rows` de extensión; `/search` acepta filtros de extensión (`province`, `airport`, `max_airport_km`, `accommodation_type`, `max_price`, `min_stars`, `sort_by`) | El esquema no prohíbe propiedades adicionales (`additionalProperties` solo es `false` en ProblemDetails); el contrato no define filtros del marketplace |
+| 7 | `/details` y `/reviews` aceptan `page`/`rows` de extensión; `/search` acepta filtros de extensión (`province`, `accommodation_type`, `max_price`, `min_stars`, `sort_by`) | El esquema no prohíbe propiedades adicionales (`additionalProperties` solo es `false` en ProblemDetails); el contrato no define filtros del marketplace |
 | 8 | `bulk-availability` responde por alojamiento `{id, currency, available, cheapest_product, url}` | El esquema solo dice `data: array of object` |
 | 9 | `ProblemDetails.code` solo usa el enum del YAML; para 401/403/404/500 (que el enum no cubre) se usa `VALIDATION_FAILED` y el `status`/`title` indican el tipo | El enum es cerrado |
 | 10 | Pago rechazado (`PAY-DECLINED…`) → **402** `PAYMENT_NOT_AUTHORIZED` | Semántica HTTP de pago requerido; el contrato no lo fija |

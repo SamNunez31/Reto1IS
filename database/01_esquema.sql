@@ -1,25 +1,26 @@
 -- =====================================================================
 --  BOOKING PROTOTIPO (Ecuador) - Esquema PostgreSQL v3.2 | Reto 1 (S1-S6)
 --  Integración de Sistemas - PUCE | Alcance: nivel nacional (Ecuador, USD)
---  22 tablas en este script (27 en total con 03_integracion.sql). Probado en PostgreSQL 16 / Supabase.
+--  20 tablas en este script (25 en total con 03_integracion.sql). Probado en PostgreSQL 16 / Supabase.
 --  Modelo normalizado: sin listas en columnas; los totales y penalidades se derivan en vistas.
 --
 --  Ejecutar completo:  01_esquema.sql  ->  02_datos_demo.sql  ->  03_integracion.sql
 --  Re-ejecutable: borra y recrea SOLO el schema 'booking'.
 --  BD ya existente con la tabla alojamiento_codigo: usar migracion_codigo_en_alojamiento.sql.
 --  BD ya existente con la tabla reporte: usar migracion_admin_dueno.sql y migracion_sin_reportes.sql.
+--  BD ya existente con la tabla aeropuerto: usar migracion_sin_aeropuertos.sql.
 --
 --  MÓDULOS
 --   Acceso      : usuario, token_usuario
---   Catálogos   : ciudad, aeropuerto, tipo_alojamiento, amenidad,
+--   Catálogos   : ciudad, tipo_alojamiento, amenidad,
 --                 politica_cancelacion, politica_cancelacion_regla, impuesto_tarifa
 --   Oferta      : alojamiento, unidad_alojamiento, calendario_unidad,
---                 alojamiento_aeropuerto, alojamiento_amenidad, imagen_alojamiento
+--                 alojamiento_amenidad, imagen_alojamiento
 --   Ventas      : reserva, reserva_detalle, cancelacion, pago, factura
 --   Confianza   : resena  (las denuncias quedan como evolución futura)
 --   Integración : evento_outbox  (EDA, semanas 5-6)
 --
---  Las tablas puente son binarias (alojamiento_amenidad, alojamiento_aeropuerto).
+--  La tabla puente es binaria (alojamiento_amenidad).
 --  No se guardan totales ni penalidades derivables: salen de las
 --  vistas v_reserva_total y v_cancelacion_liquidacion. Lo que sí se guarda
 --  (montos por línea de reserva, datos del comprador en la factura, política
@@ -111,17 +112,6 @@ CREATE TABLE ciudad (
         AND (latitud IS NULL OR (latitud BETWEEN -5 AND 2 AND longitud BETWEEN -93 AND -75)))
 );
 
-CREATE TABLE aeropuerto (
-  id          smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  codigo_iata char(3)      NOT NULL,
-  nombre      varchar(120) NOT NULL,
-  ciudad_id   smallint     NOT NULL REFERENCES ciudad(id),
-  latitud     numeric(9,6) NOT NULL,
-  longitud    numeric(9,6) NOT NULL,
-  CONSTRAINT uq_aeropuerto_iata UNIQUE (codigo_iata),
-  CONSTRAINT ck_aero_coord CHECK (latitud BETWEEN -5 AND 2 AND longitud BETWEEN -93 AND -75)
-);
-
 CREATE TABLE tipo_alojamiento (
   id     smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   nombre varchar(50) NOT NULL,
@@ -161,7 +151,7 @@ CREATE TABLE impuesto_tarifa (
   porcentaje              numeric(5,2) NOT NULL,
   vigente_desde           date NOT NULL,
   vigente_hasta           date,
-  requiere_registro_turismo boolean NOT NULL DEFAULT false,  -- exige registro_turismo y LUAF
+  requiere_registro_turismo boolean NOT NULL DEFAULT false,  -- sin uso en la aplicación (siempre false): los feriados dependen solo de sus fechas
   estrellas_minimas       smallint,                          -- p. ej. servicio 10% desde 4 estrellas
   CONSTRAINT uq_impuesto UNIQUE (nombre, vigente_desde),
   CONSTRAINT ck_imp_pct   CHECK (porcentaje BETWEEN 0 AND 100),
@@ -193,8 +183,8 @@ CREATE TABLE alojamiento (
   modo_reserva       modo_reserva NOT NULL DEFAULT 'INSTANTANEA',
   reglas_casa        text,
   categoria_estrellas smallint,          -- solo establecimientos categorizados
-  registro_turismo   varchar(30),        -- opcional; con luaf habilita IVA reducido en feriados
-  luaf               varchar(30),
+  registro_turismo   varchar(30),        -- sin uso en la aplicación (se conserva la columna)
+  luaf               varchar(30),        -- sin uso en la aplicación (se conserva la columna)
   estado             estado_alojamiento NOT NULL DEFAULT 'BORRADOR',
   created_at         timestamptz NOT NULL DEFAULT now(),
   updated_at         timestamptz NOT NULL DEFAULT now(),
@@ -235,17 +225,6 @@ CREATE TABLE calendario_unidad (
   CONSTRAINT ck_cal_algo   CHECK (precio_noche IS NOT NULL OR cantidad_a_la_venta IS NOT NULL),
   CONSTRAINT ck_cal_precio CHECK (precio_noche IS NULL OR precio_noche > 0),
   CONSTRAINT ck_cal_cant   CHECK (cantidad_a_la_venta IS NULL OR cantidad_a_la_venta >= 0)
-);
-
--- Distancia por carretera y tiempo NO se derivan de las coordenadas
-CREATE TABLE alojamiento_aeropuerto (
-  alojamiento_id  uuid     NOT NULL REFERENCES alojamiento(id) ON DELETE CASCADE,
-  aeropuerto_id   smallint NOT NULL REFERENCES aeropuerto(id),
-  distancia_km    numeric(6,1) NOT NULL,
-  tiempo_min      smallint NOT NULL,
-  ofrece_transfer boolean  NOT NULL DEFAULT false,
-  PRIMARY KEY (alojamiento_id, aeropuerto_id),
-  CONSTRAINT ck_aa CHECK (distancia_km >= 0 AND tiempo_min >= 0)
 );
 
 CREATE TABLE alojamiento_amenidad (
@@ -319,7 +298,9 @@ CREATE TABLE pago (
   estado     estado_pago NOT NULL DEFAULT 'APROBADO',
   referencia varchar(60),
   fecha      timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT ck_pago_monto CHECK (monto > 0)
+  metodo     text NOT NULL DEFAULT 'TARJETA',      -- TARJETA (aprobado al reservar) | EFECTIVO (PENDIENTE hasta que el admin lo confirma)
+  CONSTRAINT ck_pago_monto CHECK (monto > 0),
+  CONSTRAINT ck_pago_metodo CHECK (metodo IN ('TARJETA','EFECTIVO'))
 );
 
 -- Factura SIMULADA (sin autorización del SRI). Guarda copia de los datos del comprador
@@ -378,7 +359,6 @@ CREATE INDEX ix_token_usuario  ON token_usuario (usuario_id, tipo);
 CREATE INDEX ix_aloj_busqueda  ON alojamiento (ciudad_id, estado);
 CREATE INDEX ix_aloj_anfitrion ON alojamiento (anfitrion_id);
 CREATE INDEX ix_unidad_aloj    ON unidad_alojamiento (alojamiento_id) WHERE activa;
-CREATE INDEX ix_aa_aeropuerto  ON alojamiento_aeropuerto (aeropuerto_id, distancia_km);
 CREATE INDEX ix_reserva_aloj   ON reserva (alojamiento_id, fecha_entrada, fecha_salida);
 CREATE INDEX ix_reserva_huesp  ON reserva (huesped_id, fecha_entrada DESC);
 CREATE INDEX ix_reserva_expira ON reserva (expira_en) WHERE estado = 'PENDIENTE';
@@ -390,8 +370,8 @@ CREATE INDEX ix_outbox_corr    ON evento_outbox (correlacion_id);
 -- ---------------------------------------------------------------------
 -- 9. FUNCIONES DE CÁLCULO
 -- ---------------------------------------------------------------------
--- Tarifa IVA vigente en una fecha. El tramo "requiere_registro_turismo" solo aplica si el
--- alojamiento declara registro_turismo y luaf; entre las aplicables gana la más específica.
+-- Tarifa IVA vigente en una fecha; entre las aplicables gana la más reciente. La aplicación registra los feriados
+-- con requiere_registro_turismo = false, así que el IVA reducido depende solo de las fechas del feriado.
 CREATE OR REPLACE FUNCTION fn_iva_pct(p_alojamiento uuid, p_fecha date) RETURNS numeric
 LANGUAGE sql STABLE AS $$
   SELECT t.porcentaje
@@ -858,15 +838,13 @@ END $$;
 CREATE OR REPLACE FUNCTION fn_buscar_alojamientos(
   p_entrada date, p_salida date, p_huespedes integer DEFAULT 1,
   p_provincia provincia_ec DEFAULT NULL, p_ciudad smallint DEFAULT NULL,
-  p_aeropuerto char(3) DEFAULT NULL, p_max_km numeric DEFAULT NULL,
   p_tipo smallint DEFAULT NULL, p_precio_max numeric DEFAULT NULL, p_estrellas_min smallint DEFAULT NULL,
   p_limit integer DEFAULT 20, p_offset integer DEFAULT 0)
 RETURNS TABLE (alojamiento_id uuid, nombre varchar, tipo varchar, ciudad varchar, provincia provincia_ec,
-               estrellas smallint, precio_desde_noche numeric, aeropuerto char, distancia_km numeric,
-               tiempo_min smallint, ofrece_transfer boolean, calificacion numeric, num_resenas bigint, portada text)
+               estrellas smallint, precio_desde_noche numeric, calificacion numeric, num_resenas bigint, portada text)
 LANGUAGE sql STABLE AS $$
   SELECT a.id, a.nombre, ta.nombre, c.nombre, c.provincia, a.categoria_estrellas, d.precio_desde,
-         ae.codigo_iata, aa.distancia_km, aa.tiempo_min, aa.ofrece_transfer, rt.prom, COALESCE(rt.n, 0), pi.url
+         rt.prom, COALESCE(rt.n, 0), pi.url
   FROM alojamiento a
   JOIN tipo_alojamiento ta ON ta.id = a.tipo_id
   JOIN ciudad c ON c.id = a.ciudad_id
@@ -876,11 +854,6 @@ LANGUAGE sql STABLE AS $$
      FROM unidad_alojamiento u
      CROSS JOIN LATERAL (SELECT fn_cupo_unidad(u.id, p_entrada, p_salida) AS cupo) q
      WHERE u.alojamiento_id = a.id AND u.activa AND q.cupo > 0) d
-  LEFT JOIN LATERAL (
-     SELECT x.* FROM alojamiento_aeropuerto x JOIN aeropuerto y ON y.id = x.aeropuerto_id
-      WHERE x.alojamiento_id = a.id AND (p_aeropuerto IS NULL OR y.codigo_iata = p_aeropuerto)
-      ORDER BY x.distancia_km LIMIT 1) aa ON true
-  LEFT JOIN aeropuerto ae ON ae.id = aa.aeropuerto_id
   LEFT JOIN LATERAL (
      SELECT round(avg(rs.nota_global), 1) AS prom, count(*) AS n
        FROM resena rs JOIN reserva rv ON rv.id = rs.reserva_id
@@ -895,9 +868,7 @@ LANGUAGE sql STABLE AS $$
     AND (p_tipo IS NULL OR a.tipo_id = p_tipo)
     AND (p_estrellas_min IS NULL OR a.categoria_estrellas >= p_estrellas_min)
     AND (p_precio_max IS NULL OR d.precio_desde <= p_precio_max)
-    AND (p_aeropuerto IS NULL OR aa.aeropuerto_id IS NOT NULL)
-    AND (p_max_km IS NULL OR aa.distancia_km <= p_max_km)
-  ORDER BY aa.distancia_km NULLS LAST, d.precio_desde
+  ORDER BY d.precio_desde
   LIMIT p_limit OFFSET p_offset $$;
 
 -- ---------------------------------------------------------------------
@@ -914,10 +885,9 @@ END $$;
 -- ---------------------------------------------------------------------
 -- 15. CATÁLOGOS INICIALES
 -- ---------------------------------------------------------------------
--- Tipos oficiales del Reglamento de Alojamiento Turístico + tipos no categorizados
+-- Los 5 tipos de alojamiento más buscados en Ecuador (catálogo cerrado: el admin no agrega tipos)
 INSERT INTO tipo_alojamiento (nombre) VALUES
- ('Hotel'),('Hostal'),('Hostería'),('Hacienda turística'),('Lodge'),('Resort'),('Refugio'),
- ('Campamento turístico'),('Casa de huéspedes'),('Casa'),('Departamento'),('Habitación privada'),('Cabaña');
+ ('Hotel'),('Hostal'),('Cabaña'),('Casa'),('Departamento');
 
 INSERT INTO politica_cancelacion (nombre, descripcion) VALUES
  ('FLEXIBLE','Gratis hasta 48 h antes del check-in; entre 48 y 24 h se cobra el 50% del hospedaje; con menos de 24 h, el 100%.'),
@@ -931,8 +901,8 @@ SELECT p.id, v.h, v.pct FROM politica_cancelacion p JOIN (VALUES
 
 -- IVA general y cargo de servicio. Los feriados con IVA reducido NO se siembran:
 -- el ADMIN los registra desde el decreto oficial (verificar en el SRI), por ejemplo:
---   INSERT INTO impuesto_tarifa (nombre,tipo,porcentaje,vigente_desde,vigente_hasta,requiere_registro_turismo)
---   VALUES ('IVA turismo - Feriado X','IVA',8,'2026-12-24','2026-12-27',true);
+--   INSERT INTO impuesto_tarifa (nombre,tipo,porcentaje,vigente_desde,vigente_hasta)
+--   VALUES ('IVA turismo - Feriado X','IVA',8,'2026-12-24','2026-12-27');
 INSERT INTO impuesto_tarifa (nombre, tipo, porcentaje, vigente_desde, requiere_registro_turismo, estrellas_minimas) VALUES
  ('IVA general','IVA',15,'2024-04-01',false,NULL),
  ('Servicio 10% (4 y 5 estrellas)','SERVICIO',10,'2015-01-01',false,4);
@@ -952,16 +922,6 @@ INSERT INTO ciudad (provincia, nombre, latitud, longitud) VALUES
  ('Bolívar','Guaranda',-1.590500,-79.001000),('Morona Santiago','Macas',-2.308700,-78.111400),
  ('Zamora Chinchipe','Zamora',-4.069200,-78.956700),('Los Ríos','Babahoyo',-1.802200,-79.534400);
 
-INSERT INTO aeropuerto (codigo_iata, nombre, ciudad_id, latitud, longitud) VALUES
- ('UIO','Aeropuerto Internacional Mariscal Sucre',        (SELECT id FROM ciudad WHERE nombre='Tababela'),      -0.129167,-78.357500),
- ('GYE','Aeropuerto Internacional José Joaquín de Olmedo',(SELECT id FROM ciudad WHERE nombre='Guayaquil'),     -2.157419,-79.883558),
- ('CUE','Aeropuerto Mariscal Lamar',                      (SELECT id FROM ciudad WHERE nombre='Cuenca'),       -2.889475,-78.984397),
- ('GPS','Aeropuerto Seymour (Baltra)',                    (SELECT id FROM ciudad WHERE nombre='Baltra'),       -0.453758,-90.265917),
- ('SCY','Aeropuerto San Cristóbal',                       (SELECT id FROM ciudad WHERE nombre='Puerto Baquerizo Moreno'), -0.910206,-89.617433),
- ('MEC','Aeropuerto Internacional Eloy Alfaro (Manta)',   (SELECT id FROM ciudad WHERE nombre='Manta'),        -0.946078,-80.678808),
- ('LTX','Aeropuerto Internacional Cotopaxi',              (SELECT id FROM ciudad WHERE nombre='Latacunga'),    -0.906836,-78.615761),
- ('LOH','Aeropuerto Camilo Ponce Enríquez',               (SELECT id FROM ciudad WHERE nombre='Catamayo'),     -3.995889,-79.371889);
-
 -- (mascotas, fumar y fiestas son reglas de la casa, no amenidades)
 INSERT INTO amenidad (nombre, categoria) VALUES
  ('Wi-Fi','Esenciales'),('Agua caliente','Esenciales'),('Cocina equipada','Esenciales'),
@@ -977,7 +937,6 @@ INSERT INTO amenidad (nombre, categoria) VALUES
 COMMENT ON TABLE usuario                    IS 'Cuentas de personas (huésped y/o anfitrión) y administradores: datos de acceso y, opcionalmente, de facturación.';
 COMMENT ON TABLE token_usuario              IS 'Tokens de un solo uso (recuperar clave, verificar correo): solo se guarda su hash SHA-256 y su vencimiento.';
 COMMENT ON TABLE ciudad                     IS 'Localidades donde hay alojamientos (provincia, nombre y coordenadas); sirven para buscar y filtrar.';
-COMMENT ON TABLE aeropuerto                 IS 'Aeropuertos del país (código IATA y ubicación) para el filtro "cerca del aeropuerto".';
 COMMENT ON TABLE tipo_alojamiento           IS 'Catálogo de tipos de alojamiento (Hotel, Hostal, Cabaña, etc.).';
 COMMENT ON TABLE amenidad                   IS 'Catálogo de comodidades que puede ofrecer un alojamiento, agrupadas por categoría.';
 COMMENT ON TABLE politica_cancelacion       IS 'Políticas de cancelación (FLEXIBLE, MODERADA, NO_REEMBOLSABLE) con el texto que ve el huésped.';
@@ -986,7 +945,6 @@ COMMENT ON TABLE impuesto_tarifa            IS 'Tarifas de IVA y cargo de servic
 COMMENT ON TABLE alojamiento                IS 'Anuncio de un anfitrión: datos, ubicación, reglas, política y estado; "codigo" es su identificador público entero.';
 COMMENT ON TABLE unidad_alojamiento         IS 'Lo que se reserva dentro de un alojamiento: un tipo de habitación (con cantidad) o la propiedad completa, con precio base.';
 COMMENT ON TABLE calendario_unidad          IS 'Excepciones diarias de una unidad: precio especial y/o cantidad a la venta (0 = cerrada ese día).';
-COMMENT ON TABLE alojamiento_aeropuerto     IS 'Aeropuertos cercanos a cada alojamiento, con distancia por carretera, tiempo y si ofrece transfer.';
 COMMENT ON TABLE alojamiento_amenidad       IS 'Qué amenidades tiene cada alojamiento (tabla puente).';
 COMMENT ON TABLE imagen_alojamiento         IS 'Fotos de cada alojamiento (URL) con su orden de presentación y una sola portada.';
 COMMENT ON TABLE reserva                    IS 'Cabecera de cada reserva: huésped, alojamiento, fechas, número de huéspedes, política aceptada y estado.';
@@ -998,7 +956,7 @@ COMMENT ON TABLE resena                     IS 'Calificación (1 a 10) y comenta
 COMMENT ON TABLE evento_outbox              IS 'Eventos de negocio (outbox) escritos en la misma transacción que el cambio, para publicarlos y trazar cada flujo.';
 
 DO $$ BEGIN
-  RAISE NOTICE 'OK: % tablas, % ciudades, % aeropuertos, % tipos de alojamiento',
+  RAISE NOTICE 'OK: % tablas, % ciudades, % tipos de alojamiento',
     (SELECT count(*) FROM pg_tables WHERE schemaname='booking'),
-    (SELECT count(*) FROM ciudad), (SELECT count(*) FROM aeropuerto), (SELECT count(*) FROM tipo_alojamiento);
+    (SELECT count(*) FROM ciudad), (SELECT count(*) FROM tipo_alojamiento);
 END $$;

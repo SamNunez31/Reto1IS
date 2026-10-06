@@ -1,7 +1,7 @@
 import { Request } from 'express';
 import { logJson } from './log-json';
 
-export type EventoSeguridad = 'login_ok' | 'login_fallido' | 'acceso_401' | 'acceso_403';
+export type EventoSeguridad = 'login_ok' | 'login_fallido' | 'acceso_401' | 'acceso_403' | 'pago_confirmado';
 
 /** Oculta la parte local del correo: "ana.perez@x.com" -> "a***@x.com". */
 export function enmascararEmail(email: unknown): string | undefined {
@@ -15,7 +15,7 @@ export function enmascararEmail(email: unknown): string | undefined {
  * Nunca recibe contraseñas, tokens ni cabeceras Authorization.
  */
 export function auditar(evento: EventoSeguridad, req: Request, campos: Record<string, unknown> = {}): void {
-  logJson(evento === 'login_ok' ? 'info' : 'warn', 'auditoria', {
+  logJson(evento === 'login_ok' || evento === 'pago_confirmado' ? 'info' : 'warn', 'auditoria', {
     evento,
     correlation_id: req.correlationId,
     ip: req.ip,

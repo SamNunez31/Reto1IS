@@ -73,14 +73,6 @@ export class BulkAvailabilityResponse {
   data: DisponibilidadAlojamiento[];
 }
 
-export class Aeropuerto {
-  iata: string;
-  name: string;
-  distance_km: number;
-  time_min: number;
-  transfer: boolean;
-}
-
 export class Facilidad {
   id: number;
   name: string;
@@ -152,7 +144,6 @@ export class DetalleAlojamiento {
   currency: string;
   @ApiProperty({ type: String, nullable: true })
   cover_photo: string | null;
-  airports: Aeropuerto[];
   description?: string;
   bundles?: object[];
   facilities?: Facilidad[];

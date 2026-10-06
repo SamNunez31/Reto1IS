@@ -16,11 +16,10 @@ import { CotizacionService } from './cotizacion.service';
 
 /** ORDER BY permitidos (lista blanca: nunca se concatena texto del cliente). */
 const ORDEN_SQL: Record<OrdenBusqueda, string> = {
-  relevancia: 'b.distancia_km NULLS LAST, b.precio_desde_noche, a.codigo',
+  relevancia: 'b.precio_desde_noche, a.codigo',
   precio_asc: 'b.precio_desde_noche, a.codigo',
   precio_desc: 'b.precio_desde_noche DESC, a.codigo',
   calificacion: 'b.calificacion DESC NULLS LAST, b.num_resenas DESC, a.codigo',
-  distancia: 'b.distancia_km NULLS LAST, a.codigo',
 };
 
 const iso = (d: Date | string): string => new Date(d).toISOString();
@@ -67,15 +66,14 @@ export class CatalogoService {
     const orden = ORDEN_SQL[dto.sort_by ?? OrdenBusqueda.relevancia];
     const res = await this.db.query<{ codigo: number; total: number }>(
       `SELECT a.codigo, count(*) OVER()::int AS total
-         FROM fn_buscar_alojamientos($1::date, $2::date, $3::int, $4::provincia_ec, $5::smallint, $6::char(3),
-                                     $7::numeric, $8::smallint, $9::numeric, $10::smallint, 100000, 0) b
+         FROM fn_buscar_alojamientos($1::date, $2::date, $3::int, $4::provincia_ec, $5::smallint,
+                                     $6::smallint, $7::numeric, $8::smallint, 100000, 0) b
          JOIN alojamiento a ON a.id = b.alojamiento_id
         ORDER BY ${orden}
-        LIMIT $11 OFFSET $12`,
+        LIMIT $9 OFFSET $10`,
       [
         dto.checkin, dto.checkout, totalHuespedes(dto.guests), dto.province ?? null, dto.city ?? null,
-        dto.airport ?? null, dto.max_airport_km ?? null, dto.accommodation_type ?? null, dto.max_price ?? null,
-        dto.min_stars ?? null, filas, offset,
+        dto.accommodation_type ?? null, dto.max_price ?? null, dto.min_stars ?? null, filas, offset,
       ],
     );
     const total = res[0]?.total ?? 0;
@@ -149,12 +147,7 @@ export class CatalogoService {
     );
     const ids = base.map((b) => b.aloj_id);
     const extras = new Set<string>(dto.extras ?? []);
-    const [aeropuertos, facilidades, fotos, habitaciones, politicas] = await Promise.all([
-      this.agrupar<{ aloj_id: string; iata: string; name: string; distance_km: number; time_min: number; transfer: boolean }>(
-        `SELECT aa.alojamiento_id AS aloj_id, ae.codigo_iata AS iata, ae.nombre AS name, aa.distancia_km AS distance_km,
-                aa.tiempo_min AS time_min, aa.ofrece_transfer AS transfer
-           FROM alojamiento_aeropuerto aa JOIN aeropuerto ae ON ae.id = aa.aeropuerto_id
-          WHERE aa.alojamiento_id = ANY($1::uuid[]) ORDER BY aa.distancia_km`, ids),
+    const [facilidades, fotos, habitaciones, politicas] = await Promise.all([
       extras.has('facilities')
         ? this.agrupar<{ aloj_id: string; id: number; name: string; category: string }>(
             `SELECT x.alojamiento_id AS aloj_id, m.id, m.nombre AS name, m.categoria AS category
@@ -189,7 +182,6 @@ export class CatalogoService {
         price_from: b.precio_desde,
         currency: 'USD',
         cover_photo: b.portada,
-        airports: (aeropuertos.get(b.aloj_id) ?? []).map(({ aloj_id: _a, ...x }) => x),
       };
       if (extras.has('description')) d.description = b.descripcion;
       if (extras.has('bundles')) d.bundles = [];
@@ -251,7 +243,6 @@ export class CatalogoService {
       cancellation_policies: `SELECT id, nombre AS name, descripcion AS description FROM politica_cancelacion ORDER BY id`,
       provinces: `SELECT p::text AS name FROM unnest(enum_range(NULL::provincia_ec)) p`,
       cities: `SELECT id, nombre AS name, provincia::text AS province FROM ciudad ORDER BY provincia, nombre`,
-      airports: `SELECT ae.id, ae.codigo_iata AS iata, ae.nombre AS name, c.nombre AS city FROM aeropuerto ae JOIN ciudad c ON c.id = ae.ciudad_id ORDER BY ae.codigo_iata`,
       booking_statuses: `SELECT e::text AS name FROM unnest(enum_range(NULL::estado_reserva)) e`,
     };
     const pedidas = dto.constants?.length ? dto.constants.filter((c) => c in consultas) : Object.keys(consultas);

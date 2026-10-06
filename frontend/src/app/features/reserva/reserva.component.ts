@@ -14,11 +14,15 @@ import {
 } from '../../shared/tarjeta';
 import { plural, rangoLargo, textoPersonas, tituloPolitica } from '../../shared/textos';
 import { AlertaErrorComponent, CargandoComponent } from '../../shared/ui';
-import { filtrarDocumento, maxDocumento, motivoDocumento, normalizarEmail, normalizarNombre, traducirMotivoApi, vEmail, vLongitud, vNombre } from '../../shared/validadores';
+import { bloquearNoDigitos, FiltroDirective } from '../../shared/entrada';
+import { HORA_CHECKIN_DEFECTO, instanteCheckin, lineaCancelacion } from '../../shared/cancelacion';
+import { lineasTramos } from '../anfitrion/politicas.service';
+import { filtrarDocumento, maxDocumento, motivoDocumento, motivoRazon, normalizarEmail, normalizarNombre, traducirMotivoApi, vEmail, vNombre } from '../../shared/validadores';
 
 const VIGENCIA_MS = 15 * 60 * 1000;
 const ESPERA_PAGO_MS = 1500;
 type Paso = 'factura' | 'pago' | 'confirmacion';
+type MetodoPago = 'TARJETA' | 'EFECTIVO';
 type TipoFactura = 'CEDULA' | 'RUC' | 'PASAPORTE' | 'CONSUMIDOR_FINAL';
 
 const err = (m: string | null) => (m ? { mensaje: m } : null);
@@ -26,16 +30,16 @@ const tipoDe = (c: AbstractControl): TipoFactura => (c.parent?.get('tipo')?.valu
 /** Validadores que dependen del tipo de documento elegido. */
 const vNumero: ValidatorFn = (c) => (tipoDe(c) === 'CONSUMIDOR_FINAL' ? null : err(motivoDocumento(tipoDe(c), (c.value ?? '').trim())));
 const vPersona = (campo: 'nombres' | 'apellidos'): ValidatorFn => (c) => (['CEDULA', 'PASAPORTE'].includes(tipoDe(c)) ? vNombre(campo)(c) : null);
-const vRazon: ValidatorFn = (c) => (tipoDe(c) === 'RUC' ? vLongitud(2, 160, 'la razón social')(c) : null);
+const vRazon: ValidatorFn = (c) => (tipoDe(c) === 'RUC' ? err(motivoRazon(c.value ?? '')) : null);
 const vCorreo: ValidatorFn = (c) => (tipoDe(c) === 'CONSUMIDOR_FINAL' ? null : vEmail()(c));
 
 @Component({
   selector: 'app-reserva',
-  imports: [CurrencyPipe, ReactiveFormsModule, RouterLink, AlertaErrorComponent, CargandoComponent, CampoMensajeComponent],
+  imports: [CurrencyPipe, ReactiveFormsModule, RouterLink, AlertaErrorComponent, CargandoComponent, CampoMensajeComponent, FiltroDirective],
   template: `
     @if (sel(); as s) {
       @if (paso() !== 'confirmacion') { <a [routerLink]="['/alojamientos', s.codigo]" class="volver">← Volver al alojamiento</a> }
-      <h1>{{ paso() === 'confirmacion' ? '¡Pago recibido!' : 'Confirma y paga' }}</h1>
+      <h1>{{ paso() === 'confirmacion' ? (metodo() === 'EFECTIVO' ? 'Reserva confirmada' : '¡Pago recibido!') : 'Confirma y paga' }}</h1>
       <ol class="pasos" aria-label="Pasos de la reserva">
         @for (p of pasos; track p.id; let i = $index) {
           <li [class.activo]="paso() === p.id" [attr.aria-current]="paso() === p.id ? 'step' : null">{{ i + 1 }}. {{ p.titulo }}</li>
@@ -80,7 +84,7 @@ const vCorreo: ValidatorFn = (c) => (tipoDe(c) === 'CONSUMIDOR_FINAL' ? null : v
                 @if (tipo() === 'RUC') {
                   <div class="grupo">
                     <label for="fac-razon">Razón social</label>
-                    <input id="fac-razon" formControlName="razon" autocomplete="organization" maxlength="160"
+                    <input id="fac-razon" appFiltro="razon" formControlName="razon" autocomplete="organization" maxlength="160"
                            [attr.aria-invalid]="mal(factura.controls.razon)" aria-describedby="msg-fac-razon" />
                     <app-campo-mensaje [control]="factura.controls.razon" id="msg-fac-razon" />
                   </div>
@@ -88,13 +92,13 @@ const vCorreo: ValidatorFn = (c) => (tipoDe(c) === 'CONSUMIDOR_FINAL' ? null : v
                   <div class="fila">
                     <div class="grupo">
                       <label for="fac-nombres">Nombres</label>
-                      <input id="fac-nombres" formControlName="nombres" autocomplete="given-name" maxlength="80"
+                      <input id="fac-nombres" appFiltro="nombre" formControlName="nombres" autocomplete="given-name" maxlength="80"
                              [attr.aria-invalid]="mal(factura.controls.nombres)" aria-describedby="msg-fac-nombres" />
                       <app-campo-mensaje [control]="factura.controls.nombres" id="msg-fac-nombres" />
                     </div>
                     <div class="grupo">
                       <label for="fac-apellidos">Apellidos</label>
-                      <input id="fac-apellidos" formControlName="apellidos" autocomplete="family-name" maxlength="80"
+                      <input id="fac-apellidos" appFiltro="nombre" formControlName="apellidos" autocomplete="family-name" maxlength="80"
                              [attr.aria-invalid]="mal(factura.controls.apellidos)" aria-describedby="msg-fac-apellidos" />
                       <app-campo-mensaje [control]="factura.controls.apellidos" id="msg-fac-apellidos" />
                     </div>
@@ -109,18 +113,51 @@ const vCorreo: ValidatorFn = (c) => (tipoDe(c) === 'CONSUMIDOR_FINAL' ? null : v
               } @else {
                 <p class="nota">La factura se emitirá a <strong>consumidor final</strong>; no necesitas ingresar más datos.</p>
               }
-              <button class="btn btn-primario" type="submit">Continuar al pago</button>
+              <button class="btn btn-primario" type="submit" [disabled]="factura.invalid">Continuar al pago</button>
+              @if (factura.invalid) {
+                <p class="ayuda">Completa los datos de la factura para continuar. <button type="button" class="btn-enlace" (click)="continuarAPago()">Ver qué falta</button></p>
+              }
             </form>
           }
 
-          <!-- 2. Pago con tarjeta -->
+          <!-- 2. Pago: tarjeta de crédito o efectivo -->
           @if (paso() === 'pago') {
-            <form [formGroup]="tarjeta" (ngSubmit)="pagar()" novalidate autocomplete="on">
-              <div class="pago-cabecera">
-                <h2>Pago con tarjeta</h2>
-                <button type="button" class="btn-enlace" (click)="irAFactura()">Editar datos de la factura</button>
+            <div class="pago-cabecera">
+              <h2>Pago</h2>
+              <button type="button" class="btn-enlace" (click)="irAFactura()">Editar datos de la factura</button>
+            </div>
+            <p class="meta">Factura a nombre de <strong>{{ resumenFactura() }}</strong></p>
+            <fieldset class="bloque metodo-pago">
+              <legend>¿Cómo quieres pagar?</legend>
+              <div class="opciones-tarjeta" role="radiogroup" aria-label="Método de pago">
+                <label class="opcion-tarjeta">
+                  <input type="radio" name="metodo-pago" value="TARJETA" [checked]="metodo() === 'TARJETA'" (change)="elegirMetodo('TARJETA')" />
+                  <span class="icono" aria-hidden="true">💳</span>
+                  <span class="titulo">Tarjeta de crédito</span>
+                  <span class="detalle">Pagas ahora y la reserva queda pagada.</span>
+                </label>
+                <label class="opcion-tarjeta">
+                  <input type="radio" name="metodo-pago" value="EFECTIVO" [checked]="metodo() === 'EFECTIVO'" (change)="elegirMetodo('EFECTIVO')" />
+                  <span class="icono" aria-hidden="true">💵</span>
+                  <span class="titulo">Efectivo</span>
+                  <span class="detalle">Pagas al llegar al alojamiento.</span>
+                </label>
               </div>
-              <p class="meta">Factura a nombre de <strong>{{ resumenFactura() }}</strong></p>
+            </fieldset>
+
+            @if (metodo() === 'EFECTIVO') {
+              <div class="pago-efectivo">
+                <p class="alerta alerta-info">Pagarás <strong>{{ total() | currency: 'USD' }}</strong> en efectivo al llegar; tu reserva queda confirmada desde ahora.</p>
+                <button class="btn btn-primario btn-pagar" type="button" (click)="confirmarEfectivo()" [disabled]="procesando() || vencido()">
+                  {{ procesando() ? 'Confirmando…' : 'Confirmar reserva' }}
+                </button>
+                <div aria-live="polite">@if (procesando()) { <app-cargando texto="Confirmando tu reserva…" /> }</div>
+                @if (vencido()) {
+                  <p class="alerta alerta-aviso">El precio garantizado venció. <button class="btn" type="button" (click)="volverACotizar()">Actualizar precio</button></p>
+                }
+              </div>
+            } @else {
+            <form [formGroup]="tarjeta" (ngSubmit)="pagar()" novalidate autocomplete="on">
 
               @if (demo()) {
                 <details class="tarjetas-prueba">
@@ -138,14 +175,14 @@ const vCorreo: ValidatorFn = (c) => (tipoDe(c) === 'CONSUMIDOR_FINAL' ? null : v
                 <label for="tj-numero">Número de tarjeta</label>
                 <div class="input-marca">
                   <input id="tj-numero" formControlName="numero" inputmode="numeric" autocomplete="cc-number" placeholder="1234 5678 9012 3456"
-                         [maxlength]="23" (input)="formatoNumero($event)" [attr.aria-invalid]="mal(tarjeta.controls.numero)" aria-describedby="tj-marca msg-tj-numero" />
+                         [maxlength]="23" (beforeinput)="soloDigitos($event)" (input)="formatoNumero($event)" [attr.aria-invalid]="mal(tarjeta.controls.numero)" aria-describedby="tj-marca msg-tj-numero" />
                   <span id="tj-marca" class="marca-tarjeta" [class.visible]="marca() !== 'otra'" aria-live="polite">{{ marca() !== 'otra' ? nombreMarca[marca()] : '' }}</span>
                 </div>
                 <app-campo-mensaje [control]="tarjeta.controls.numero" id="msg-tj-numero" [mostrarOk]="false" />
               </div>
               <div class="grupo">
                 <label for="tj-titular">Nombre del titular</label>
-                <input id="tj-titular" formControlName="titular" autocomplete="cc-name" placeholder="Como aparece en la tarjeta" maxlength="80"
+                <input id="tj-titular" appFiltro="nombre" formControlName="titular" autocomplete="cc-name" placeholder="Como aparece en la tarjeta" maxlength="80"
                        [attr.aria-invalid]="mal(tarjeta.controls.titular)" aria-describedby="msg-tj-titular" />
                 <app-campo-mensaje [control]="tarjeta.controls.titular" id="msg-tj-titular" [mostrarOk]="false" />
               </div>
@@ -153,28 +190,32 @@ const vCorreo: ValidatorFn = (c) => (tipoDe(c) === 'CONSUMIDOR_FINAL' ? null : v
                 <div class="grupo">
                   <label for="tj-cad">Caducidad (MM/AA)</label>
                   <input id="tj-cad" formControlName="caducidad" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/AA" maxlength="5"
-                         (input)="formatoCaducidad($event)" [attr.aria-invalid]="mal(tarjeta.controls.caducidad)" aria-describedby="msg-tj-cad" />
+                         (beforeinput)="soloDigitos($event)" (input)="formatoCaducidad($event)" [attr.aria-invalid]="mal(tarjeta.controls.caducidad)" aria-describedby="msg-tj-cad" />
                   <app-campo-mensaje [control]="tarjeta.controls.caducidad" id="msg-tj-cad" [mostrarOk]="false" />
                 </div>
                 <div class="grupo">
                   <label for="tj-cvv">Código de seguridad</label>
                   <input id="tj-cvv" formControlName="cvv" inputmode="numeric" autocomplete="cc-csc" type="password" [maxlength]="largoCvv()"
-                         [placeholder]="largoCvv() === 4 ? '4 dígitos' : '3 dígitos'" (input)="formatoCvv($event)"
+                         [placeholder]="largoCvv() === 4 ? '4 dígitos' : '3 dígitos'" (beforeinput)="soloDigitos($event)" (input)="formatoCvv($event)"
                          [attr.aria-invalid]="mal(tarjeta.controls.cvv)" aria-describedby="msg-tj-cvv" />
                   <app-campo-mensaje [control]="tarjeta.controls.cvv" id="msg-tj-cvv" [mostrarOk]="false" />
                 </div>
               </div>
 
               @if (rechazo()) { <p class="alerta alerta-error" role="alert">{{ rechazo() }}</p> }
-              <button class="btn btn-primario btn-pagar" type="submit" [disabled]="procesando() || vencido()">
+              <button class="btn btn-primario btn-pagar" type="submit" [disabled]="procesando() || vencido() || tarjeta.invalid">
                 {{ procesando() ? 'Procesando pago…' : 'Pagar ' + (total() | currency: 'USD') }}
               </button>
+              @if (tarjeta.invalid && !procesando()) {
+                <p class="ayuda">Completa los datos de la tarjeta para pagar. <button type="button" class="btn-enlace" (click)="pagar()">Ver qué falta</button></p>
+              }
               <p class="pago-seguro"><span aria-hidden="true">🔒</span> Pago seguro</p>
               <div aria-live="polite">@if (procesando()) { <app-cargando texto="Procesando tu pago…" /> }</div>
               @if (vencido()) {
                 <p class="alerta alerta-aviso">El precio garantizado venció. <button class="btn" type="button" (click)="volverACotizar()">Actualizar precio</button></p>
               }
             </form>
+            }
           }
 
           <!-- 3. Confirmación -->
@@ -182,12 +223,20 @@ const vCorreo: ValidatorFn = (c) => (tipoDe(c) === 'CONSUMIDOR_FINAL' ? null : v
             @if (orden(); as o) {
               <div class="confirmacion">
                 <p class="confirmacion-icono" aria-hidden="true">✅</p>
-                <h2>Tu reserva en {{ s.nombreAlojamiento }} está confirmada</h2>
+                <h2>Reserva confirmada en {{ s.nombreAlojamiento }}</h2>
                 <ul class="confirmacion-datos">
                   <li><span aria-hidden="true">📅</span> {{ fechas() }}</li>
                   <li><span aria-hidden="true">👥</span> {{ personas() }}</li>
-                  <li><span aria-hidden="true">💳</span> Total pagado: <strong>{{ o.total_price | currency: 'USD' }}</strong></li>
+                  @if (lineaPolitica()) { <li><span aria-hidden="true">↩️</span> {{ lineaPolitica() }}</li> }
+                  @if (metodo() === 'EFECTIVO') {
+                    <li><span aria-hidden="true">💵</span> Total a pagar en efectivo al llegar: <strong>{{ o.total_price | currency: 'USD' }}</strong></li>
+                  } @else {
+                    <li><span aria-hidden="true">💳</span> Total pagado con tarjeta: <strong>{{ o.total_price | currency: 'USD' }}</strong></li>
+                  }
                 </ul>
+                @if (metodo() === 'EFECTIVO') {
+                  <p class="alerta alerta-aviso" role="status">Pago pendiente: pagarás en efectivo al llegar. Presenta tu código de reserva.</p>
+                }
                 <div class="codigo-reserva">
                   <span class="etiqueta">Código de reserva</span>
                   <strong class="localizador">{{ o.locator }}</strong>
@@ -218,7 +267,21 @@ const vCorreo: ValidatorFn = (c) => (tipoDe(c) === 'CONSUMIDOR_FINAL' ? null : v
           @if (paso() !== 'confirmacion' && previewId && !vencido()) {
             <p class="garantia"><span aria-hidden="true">🔒</span> Precio garantizado por <strong>{{ minutosRestantes() }}</strong></p>
           }
-          <p class="meta">Cancelación {{ politica(s.producto.cancellation_policy.name) }}: {{ s.producto.cancellation_policy.description }}</p>
+          <section class="politica-resumen" aria-labelledby="titulo-politica">
+            <h3 id="titulo-politica">Cancelación {{ politica(s.producto.cancellation_policy.name).toLowerCase() }}</h3>
+            <p class="meta">{{ lineaPolitica() || s.producto.cancellation_policy.description }}</p>
+            @if (s.producto.cancellation_policy.rules.length && s.producto.cancellation_policy.name !== 'NO_REEMBOLSABLE') {
+              <details>
+                <summary>Cómo se calcula</summary>
+                <ol class="linea-tiempo">
+                  @for (l of lineas(s.producto.cancellation_policy.rules); track l.cuando) {
+                    <li [class.verde]="l.pct === 0" [class.ambar]="l.pct > 0 && l.pct < 100" [class.rojo]="l.pct === 100"><strong>{{ l.cuando }}</strong><span>{{ l.efecto }}</span></li>
+                  }
+                </ol>
+                <p class="ayuda">Plazos contados hasta el check-in ({{ horaCheckin() }}, hora de Ecuador). La limpieza y los impuestos no cuentan como penalidad.</p>
+              </details>
+            }
+          </section>
         </aside>
       </div>
     }
@@ -249,8 +312,12 @@ export class ReservaComponent implements OnInit {
   readonly tarjetasPrueba = TARJETAS_PRUEBA;
   readonly nombreMarca = NOMBRE_MARCA;
   readonly politica = tituloPolitica;
+  readonly lineas = lineasTramos;
+  readonly soloDigitos = bloquearNoDigitos;
 
   readonly paso = signal<Paso>('factura');
+  /** Método de pago elegido en el paso de pago. */
+  readonly metodo = signal<MetodoPago>('TARJETA');
   readonly preparando = signal(false);
   readonly procesando = signal(false);
   readonly error = signal<ErrorVista | null>(null);
@@ -293,6 +360,14 @@ export class ReservaComponent implements OnInit {
   readonly fechas = computed(() => {
     const s = this.sel();
     return s ? rangoLargo(s.checkin, s.checkout) : '';
+  });
+  readonly horaCheckin = computed(() => this.sel()?.horaCheckin || HORA_CHECKIN_DEFECTO);
+  /** "Cancelación gratis hasta el 9 nov, 14:00 · …" con las fechas reales de esta estancia. */
+  readonly lineaPolitica = computed(() => {
+    const s = this.sel();
+    if (!s) return '';
+    const p = s.producto.cancellation_policy;
+    return lineaCancelacion(p.name, p.rules ?? [], instanteCheckin(s.checkin, this.horaCheckin()));
   });
   readonly personas = computed(() => {
     const g = this.sel()?.guests;
@@ -398,6 +473,32 @@ export class ReservaComponent implements OnInit {
       error: (e) => {
         this.preparando.set(false);
         this.fallo(e);
+      },
+    });
+  }
+
+  elegirMetodo(m: MetodoPago): void {
+    this.metodo.set(m);
+    this.rechazo.set('');
+    this.error.set(null);
+  }
+
+  /** Efectivo: sin datos de tarjeta; la reserva queda CONFIRMADA y su pago PENDIENTE hasta que el admin lo reciba. */
+  confirmarEfectivo(): void {
+    this.procesando.set(true);
+    this.error.set(null);
+    this.reservas.crear(this.previewId, null, this.datosFactura(), 'CASH').subscribe({
+      next: (o) => {
+        this.procesando.set(false);
+        this.orden.set(o);
+        this.paso.set('confirmacion');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      },
+      error: (e) => {
+        this.procesando.set(false);
+        const er = leerError(e);
+        if (Object.keys(er.campos).some((k) => k.startsWith('customer_details'))) this.ubicarErroresFactura(er.campos);
+        else this.fallo(e);
       },
     });
   }

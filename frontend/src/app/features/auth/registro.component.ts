@@ -6,13 +6,14 @@ import { ErrorVista, leerError } from '../../core/services/api-base';
 import { AuthService } from '../../core/services/auth.service';
 import { CampoMensajeComponent, conError, OjoClaveComponent, RequisitosClaveComponent } from '../../shared/campo';
 import { AlertaErrorComponent } from '../../shared/ui';
+import { FiltroDirective } from '../../shared/entrada';
 import {
   aplicarErroresApi, LIMITES, normalizarEmail, normalizarNombre, revisarYEnfocar, vClave, vEmail, vIgualA, vNombre,
 } from '../../shared/validadores';
 
 @Component({
   selector: 'app-registro',
-  imports: [ReactiveFormsModule, RouterLink, AlertaErrorComponent, CampoMensajeComponent, RequisitosClaveComponent, OjoClaveComponent],
+  imports: [ReactiveFormsModule, RouterLink, AlertaErrorComponent, CampoMensajeComponent, RequisitosClaveComponent, OjoClaveComponent, FiltroDirective],
   template: `
     <section class="tarjeta auth">
       <h1>Crear cuenta</h1>
@@ -22,13 +23,13 @@ import {
         <div class="fila">
           <div class="grupo">
             <label for="reg-nombres">Nombres</label>
-            <input id="reg-nombres" formControlName="nombres" autocomplete="given-name" [maxlength]="L.nombre.max"
+            <input id="reg-nombres" appFiltro="nombre" formControlName="nombres" autocomplete="given-name" [maxlength]="L.nombre.max"
                    [attr.aria-invalid]="mal('nombres')" aria-describedby="msg-nombres" (blur)="limpiarNombre('nombres')" />
             <app-campo-mensaje [control]="form.controls.nombres" id="msg-nombres" />
           </div>
           <div class="grupo">
             <label for="reg-apellidos">Apellidos</label>
-            <input id="reg-apellidos" formControlName="apellidos" autocomplete="family-name" [maxlength]="L.nombre.max"
+            <input id="reg-apellidos" appFiltro="nombre" formControlName="apellidos" autocomplete="family-name" [maxlength]="L.nombre.max"
                    [attr.aria-invalid]="mal('apellidos')" aria-describedby="msg-apellidos" (blur)="limpiarNombre('apellidos')" />
             <app-campo-mensaje [control]="form.controls.apellidos" id="msg-apellidos" />
           </div>
@@ -61,7 +62,10 @@ import {
         </div>
 
         <p class="ayuda">Los datos para la factura los ingresas al momento de pagar cada reserva.</p>
-        <button class="btn btn-primario" type="submit" [disabled]="enviando()">{{ enviando() ? 'Registrando…' : 'Registrarme' }}</button>
+        <button class="btn btn-primario" type="submit" [disabled]="enviando() || form.invalid">{{ enviando() ? 'Registrando…' : 'Registrarme' }}</button>
+        @if (form.invalid && !enviando()) {
+          <p class="ayuda">Completa todos los campos para crear tu cuenta. <button type="button" class="btn-enlace" (click)="enviar()">Ver qué falta</button></p>
+        }
       </form>
       <p class="pie">¿Ya tienes cuenta? <a routerLink="/login">Inicia sesión</a></p>
     </section>

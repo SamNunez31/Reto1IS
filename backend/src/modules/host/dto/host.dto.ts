@@ -11,10 +11,7 @@ import { PaginacionDto } from '../../../common/dto/paginacion.dto';
 
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-/**
- * Posada EC confirma cada reserva al aprobarse el pago: solo se admite INSTANTANEA.
- * (El valor SOLICITUD sigue en el enum de la BD por historia, pero ya no se puede elegir.)
- */
+/** Posada EC confirma cada reserva al aprobarse el pago: solo se admite INSTANTANEA. */
 export enum ModoReserva {
   INSTANTANEA = 'INSTANTANEA',
 }
@@ -28,26 +25,6 @@ export class ImagenDto {
   @IsOptional()
   @IsBoolean()
   es_portada?: boolean;
-}
-
-export class AeropuertoCercanoDto {
-  @IsInt()
-  @Min(1)
-  aeropuerto_id: number;
-
-  @IsNumber()
-  @Min(0)
-  @Max(9999)
-  distancia_km: number;
-
-  @IsInt()
-  @Min(0)
-  @Max(3000)
-  tiempo_min: number;
-
-  @IsOptional()
-  @IsBoolean()
-  ofrece_transfer?: boolean;
 }
 
 export class CrearAlojamientoDto {
@@ -73,18 +50,12 @@ export class CrearAlojamientoDto {
   @IsOptional() @IsEnum(ModoReserva, { message: 'modo_reserva: solo se admite reserva inmediata (INSTANTANEA)' }) modo_reserva?: ModoReserva;
   @IsOptional() @Sanitizar() @IsString() @MaxLength(3000) reglas_casa?: string;
   @IsOptional() @IsInt() @Min(1) @Max(5) categoria_estrellas?: number;
-  @IsOptional() @Sanitizar() @IsString() @MaxLength(30) registro_turismo?: string;
-  @IsOptional() @Sanitizar() @IsString() @MaxLength(30) luaf?: string;
 
   /** Ids de amenidades (reemplaza la lista completa) */
   @IsOptional() @IsArray() @ArrayMaxSize(80) @IsInt({ each: true }) amenidades?: number[];
 
   /** Imágenes (reemplaza la lista completa) */
   @IsOptional() @IsArray() @ArrayMaxSize(30) @ValidateNested({ each: true }) @Type(() => ImagenDto) imagenes?: ImagenDto[];
-
-  /** Aeropuertos cercanos (reemplaza la lista completa) */
-  @IsOptional() @IsArray() @ArrayMaxSize(10) @ValidateNested({ each: true }) @Type(() => AeropuertoCercanoDto)
-  aeropuertos?: AeropuertoCercanoDto[];
 }
 
 export class ActualizarAlojamientoDto extends PartialType(CrearAlojamientoDto) {}
@@ -127,11 +98,6 @@ export class RangoFechasDto {
   @Matches(FECHA, { message: MSG_FECHA }) hasta: string;
 }
 
-export class ResponderSolicitudDto {
-  @IsBoolean()
-  acepta: boolean;
-}
-
 export class ResponderResenaDto {
   @Sanitizar() @IsString() @Length(2, 2000) respuesta: string;
 }
@@ -145,6 +111,13 @@ export enum EstadoReservaFiltro {
   COMPLETADA = 'COMPLETADA',
 }
 
+export enum EstadoPagoFiltro {
+  PENDIENTE = 'PENDIENTE',
+  APROBADO = 'APROBADO',
+}
+
 export class FiltroReservasHostDto extends PaginacionDto {
   @IsOptional() @IsEnum(EstadoReservaFiltro) estado?: EstadoReservaFiltro;
+  /** PENDIENTE = pago en efectivo aún no recibido; APROBADO = cobrado */
+  @IsOptional() @IsEnum(EstadoPagoFiltro, { message: 'estado_pago debe ser PENDIENTE o APROBADO' }) estado_pago?: EstadoPagoFiltro;
 }

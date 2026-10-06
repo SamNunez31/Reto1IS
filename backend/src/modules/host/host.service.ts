@@ -3,6 +3,7 @@ import { UsuarioToken } from '../../common/auth/decorators';
 import { Listado } from '../../common/http/respuestas';
 import { conflicto, invalido, noEncontrado } from '../../common/problem/problem';
 import { Consulta, DbService } from '../../database/db.service';
+import { sqlPago } from '../alojamientos/services/ordenes.service';
 import {
   ActualizarAlojamientoDto, ActualizarUnidadDto, CalendarioDto, CrearAlojamientoDto, FiltroReservasHostDto, UnidadDto,
 } from './dto/host.dto';
@@ -11,8 +12,18 @@ import {
 const COLUMNAS_ALOJ = [
   'tipo_id', 'ciudad_id', 'politica_id', 'nombre', 'descripcion', 'direccion', 'latitud', 'longitud', 'telefono_contacto',
   'hora_checkin', 'hora_checkout', 'noches_min', 'noches_max', 'tarifa_limpieza', 'modo_reserva', 'reglas_casa',
-  'categoria_estrellas', 'registro_turismo', 'luaf',
+  'categoria_estrellas',
 ] as const;
+/** Una fila por reserva para el panel del ADMIN (incluye método y estado del pago). */
+const SQL_RESERVA_HOST = `
+  SELECT r.id, r.codigo, r.estado::text AS estado, a.nombre AS alojamiento, a.codigo AS alojamiento_codigo, a.anfitrion_id,
+         u.nombres || ' ' || u.apellidos AS huesped, r.fecha_entrada, r.fecha_salida, r.num_huespedes,
+         t.total, r.created_at, ${sqlPago('r.id')}
+    FROM reserva r
+    JOIN alojamiento a ON a.id = r.alojamiento_id
+    JOIN usuario u ON u.id = r.huesped_id
+    JOIN v_reserva_total t ON t.reserva_id = r.id`;
+
 const COLUMNAS_UNIDAD = ['nombre', 'capacidad_huespedes', 'num_habitaciones', 'num_camas', 'num_banos', 'cantidad', 'precio_noche_base', 'activa'] as const;
 
 export interface ResumenAlojamiento {
@@ -42,7 +53,7 @@ export interface UnidadHost {
   activa: boolean;
 }
 
-export interface SolicitudHost {
+export interface ReservaHost {
   id: string;
   codigo: string;
   estado: string;
@@ -53,8 +64,11 @@ export interface SolicitudHost {
   fecha_salida: string;
   num_huespedes: number;
   total: number;
-  expira_en: string | null;
   created_at: string;
+  /** TARJETA | EFECTIVO */
+  metodo_pago: string | null;
+  /** PENDIENTE (efectivo aún no recibido) | APROBADO */
+  estado_pago: string | null;
 }
 
 /**
@@ -84,7 +98,7 @@ export class HostService {
     );
   }
 
-  /** Crea el alojamiento en BORRADOR (con amenidades, imágenes y aeropuertos) en una sola transacción. */
+  /** Crea el alojamiento en BORRADOR (con amenidades e imágenes) en una sola transacción. */
   async crear(dto: CrearAlojamientoDto, user: UsuarioToken): Promise<{ codigo: number }> {
     this.validarNoches(dto.noches_min, dto.noches_max);
     return this.db.transaccion(async (q) => {
@@ -107,13 +121,10 @@ export class HostService {
       `SELECT a.codigo, a.tipo_id, a.ciudad_id, a.politica_id, a.nombre, a.descripcion, a.direccion, a.latitud, a.longitud,
               a.telefono_contacto, to_char(a.hora_checkin, 'HH24:MI') AS hora_checkin, to_char(a.hora_checkout, 'HH24:MI') AS hora_checkout,
               a.noches_min, a.noches_max, a.tarifa_limpieza, a.modo_reserva::text AS modo_reserva, a.reglas_casa,
-              a.categoria_estrellas, a.registro_turismo, a.luaf, a.estado::text AS estado,
+              a.categoria_estrellas, a.estado::text AS estado,
               COALESCE((SELECT array_agg(amenidad_id ORDER BY amenidad_id) FROM alojamiento_amenidad WHERE alojamiento_id = a.id), '{}') AS amenidades,
               COALESCE((SELECT json_agg(json_build_object('url', url, 'es_portada', es_portada) ORDER BY orden)
-                          FROM imagen_alojamiento WHERE alojamiento_id = a.id), '[]') AS imagenes,
-              COALESCE((SELECT json_agg(json_build_object('aeropuerto_id', aeropuerto_id, 'distancia_km', distancia_km,
-                                                          'tiempo_min', tiempo_min, 'ofrece_transfer', ofrece_transfer))
-                          FROM alojamiento_aeropuerto WHERE alojamiento_id = a.id), '[]') AS aeropuertos
+                          FROM imagen_alojamiento WHERE alojamiento_id = a.id), '[]') AS imagenes
          FROM alojamiento a WHERE a.id = $1`,
       [id],
     );
@@ -225,36 +236,46 @@ export class HostService {
     return { dias: dto.dias.length };
   }
 
-  /** Reservas sobre los alojamientos (todos, para el ADMIN). */
-  async reservas(user: UsuarioToken, f: FiltroReservasHostDto): Promise<Listado<SolicitudHost>> {
-    const filas = await this.db.query<SolicitudHost & { total_filas: number }>(
-      `SELECT r.id, r.codigo, r.estado::text AS estado, a.nombre AS alojamiento, a.codigo AS alojamiento_codigo,
-              u.nombres || ' ' || u.apellidos AS huesped, r.fecha_entrada, r.fecha_salida, r.num_huespedes,
-              t.total, r.expira_en, r.created_at, count(*) OVER()::int AS total_filas
-         FROM reserva r
-         JOIN alojamiento a ON a.id = r.alojamiento_id
-         JOIN usuario u ON u.id = r.huesped_id
-         JOIN v_reserva_total t ON t.reserva_id = r.id
-        WHERE ($1::uuid IS NULL OR a.anfitrion_id = $1) AND ($2::estado_reserva IS NULL OR r.estado = $2::estado_reserva)
-        ORDER BY (r.estado = 'PENDIENTE') DESC, r.fecha_entrada DESC LIMIT $3 OFFSET $4`,
-      [this.dueno(user), f.estado ?? null, f.limit, f.offset],
+  /** Reservas sobre los alojamientos (todos, para el ADMIN), con método y estado del pago. */
+  async reservas(user: UsuarioToken, f: FiltroReservasHostDto): Promise<Listado<ReservaHost>> {
+    const filas = await this.db.query<ReservaHost & { total_filas: number; anfitrion_id: string }>(
+      `SELECT x.*, count(*) OVER()::int AS total_filas
+         FROM (${SQL_RESERVA_HOST}) x
+        WHERE ($1::uuid IS NULL OR x.anfitrion_id = $1) AND ($2::text IS NULL OR x.estado = $2)
+          AND ($3::text IS NULL OR x.estado_pago = $3)
+        ORDER BY x.fecha_entrada DESC LIMIT $4 OFFSET $5`,
+      [this.dueno(user), f.estado ?? null, f.estado_pago ?? null, f.limit, f.offset],
     );
-    return { items: filas.map(({ total_filas: _t, ...x }) => x), total: filas[0]?.total_filas ?? 0, limit: f.limit, offset: f.offset };
+    return { items: filas.map(({ total_filas: _t, anfitrion_id: _a, ...x }) => x), total: filas[0]?.total_filas ?? 0, limit: f.limit, offset: f.offset };
+  }
+
+  /** Detalle de una reserva (ADMIN): datos, total, método y estado del pago. */
+  async reserva(reservaId: string, user: UsuarioToken): Promise<ReservaHost> {
+    const f = await this.db.uno<ReservaHost & { anfitrion_id?: string }>(
+      `SELECT x.* FROM (${SQL_RESERVA_HOST}) x WHERE x.id = $1 AND ($2::uuid IS NULL OR x.anfitrion_id = $2)`,
+      [reservaId, this.dueno(user)],
+    );
+    if (!f) throw noEncontrado('La reserva no existe');
+    const { anfitrion_id: _a, ...x } = f;
+    return x;
   }
 
   /**
-   * Aceptar o rechazar una solicitud antigua (modo SOLICITUD, ya sin uso) -> fn_responder_solicitud.
-   * La función exige el dueño real del alojamiento: se le pasa ese id (el ADMIN actúa en su nombre).
+   * Confirma que se recibió el pago en EFECTIVO de una reserva (cobros PENDIENTE -> APROBADO).
+   * Idempotente: si ya estaba confirmado responde igual. 409 si la reserva no se paga en efectivo o está cancelada.
    */
-  async responder(reservaId: string, acepta: boolean, user: UsuarioToken): Promise<{ estado: string }> {
-    const fila = await this.db.uno<{ anfitrion_id: string }>(
-      `SELECT a.anfitrion_id FROM reserva r JOIN alojamiento a ON a.id = r.alojamiento_id
-        WHERE r.id = $1 AND ($2::uuid IS NULL OR a.anfitrion_id = $2)`,
-      [reservaId, this.dueno(user)],
+  async confirmarPago(reservaId: string, user: UsuarioToken): Promise<{ reserva: ReservaHost; ya_confirmado: boolean }> {
+    const actual = await this.reserva(reservaId, user);
+    if (actual.metodo_pago !== 'EFECTIVO') throw conflicto('La reserva no se paga en efectivo: no hay un pago que confirmar');
+    if (actual.estado_pago === 'APROBADO') return { reserva: actual, ya_confirmado: true };
+    if (!['CONFIRMADA', 'COMPLETADA'].includes(actual.estado)) {
+      throw conflicto(`La reserva está ${actual.estado.toLowerCase()}: no se puede confirmar su pago`);
+    }
+    await this.db.query(
+      `UPDATE pago SET estado = 'APROBADO' WHERE reserva_id = $1 AND metodo = 'EFECTIVO' AND estado = 'PENDIENTE'`,
+      [reservaId],
     );
-    if (!fila) throw noEncontrado('La reserva no existe');
-    const r = await this.db.uno<{ estado: string }>(`SELECT fn_responder_solicitud($1, $2, $3)::text AS estado`, [reservaId, fila.anfitrion_id, acepta]);
-    return { estado: r?.estado ?? '' };
+    return { reserva: await this.reserva(reservaId, user), ya_confirmado: false };
   }
 
   /** Ingresos por mes (v_ingresos_anfitrion; para el ADMIN, suma de todo el catálogo). */
@@ -330,15 +351,6 @@ export class HostService {
       const portada = Math.max(0, dto.imagenes.findIndex((i) => i.es_portada));
       for (const [orden, img] of dto.imagenes.entries()) {
         await q(`INSERT INTO imagen_alojamiento (alojamiento_id, url, orden, es_portada) VALUES ($1, $2, $3, $4)`, [id, img.url, orden, orden === portada]);
-      }
-    }
-    if (dto.aeropuertos) {
-      await q(`DELETE FROM alojamiento_aeropuerto WHERE alojamiento_id = $1`, [id]);
-      for (const ae of dto.aeropuertos) {
-        await q(
-          `INSERT INTO alojamiento_aeropuerto (alojamiento_id, aeropuerto_id, distancia_km, tiempo_min, ofrece_transfer) VALUES ($1, $2, $3, $4, $5)`,
-          [id, ae.aeropuerto_id, ae.distancia_km, ae.tiempo_min, ae.ofrece_transfer ?? false],
-        );
       }
     }
   }

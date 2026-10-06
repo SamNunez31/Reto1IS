@@ -6,12 +6,11 @@ import { noEncontrado } from '../../common/problem/problem';
 import { Consulta, DbService } from '../../database/db.service';
 import { BusEventos, EventoNegocio } from './bus-eventos';
 
-export const JOBS = ['expirar-solicitudes', 'completar-estancias', 'publicar-outbox', 'purgar-idempotencia'] as const;
+export const JOBS = ['completar-estancias', 'publicar-outbox', 'purgar-idempotencia'] as const;
 export type NombreJob = (typeof JOBS)[number];
 
 /** Llave numérica de pg_try_advisory_xact_lock por job (evita que dos instancias lo corran a la vez). */
 const LLAVE: Record<NombreJob, number> = {
-  'expirar-solicitudes': 71001,
   'completar-estancias': 71002,
   'publicar-outbox': 71003,
   'purgar-idempotencia': 71004,
@@ -38,11 +37,6 @@ export class JobsService {
     config: ConfigService,
   ) {
     this.habilitados = config.get<string>('JOBS_ENABLED') !== 'false';
-  }
-
-  @Cron(CronExpression.EVERY_5_MINUTES)
-  expirarProgramado(): Promise<void> {
-    return this.programado('expirar-solicitudes');
   }
 
   @Cron(CronExpression.EVERY_HOUR)
@@ -87,8 +81,6 @@ export class JobsService {
 
   private async trabajo(nombre: NombreJob, q: Consulta): Promise<number> {
     switch (nombre) {
-      case 'expirar-solicitudes':
-        return (await q<{ n: number }>(`SELECT fn_expirar_solicitudes() AS n`))[0].n;
       case 'completar-estancias':
         return (await q<{ n: number }>(`SELECT fn_completar_estancias() AS n`))[0].n;
       case 'purgar-idempotencia':

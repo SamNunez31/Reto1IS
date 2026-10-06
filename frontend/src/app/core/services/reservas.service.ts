@@ -28,6 +28,8 @@ export interface Seleccion {
   checkin: string;
   checkout: string;
   guests: Huespedes;
+  /** Hora de check-in del alojamiento ("14:00"): referencia de los plazos de cancelación. */
+  horaCheckin?: string;
 }
 
 /** Órdenes del contrato (preview/create/get/modify/cancel) y rutas propias de "mis reservas". */
@@ -43,12 +45,15 @@ export class ReservasService {
       .pipe(map((r) => r.data));
   }
 
-  crear(previewId: string, referenciaPago: string, cliente: DatosFactura): Observable<OrderDetail> {
-    return this.http.post<OrderDetail>(
-      `${API}/orders/create`,
-      { order_preview_id: previewId, payment_reference: referenciaPago, customer_details: cliente },
-      { headers: cabecerasIdempotentes() },
-    );
+  /**
+   * Crea la orden. Tarjeta: solo la referencia PAY-… (nunca datos de la tarjeta). Efectivo (CASH, extensión del contrato):
+   * sin referencia; la reserva queda confirmada con el pago pendiente.
+   */
+  crear(previewId: string, referenciaPago: string | null, cliente: DatosFactura, metodo: 'CARD' | 'CASH' = 'CARD'): Observable<OrderDetail> {
+    const cuerpo = metodo === 'CASH'
+      ? { order_preview_id: previewId, payment_method: 'CASH', customer_details: cliente }
+      : { order_preview_id: previewId, payment_reference: referenciaPago, customer_details: cliente };
+    return this.http.post<OrderDetail>(`${API}/orders/create`, cuerpo, { headers: cabecerasIdempotentes() });
   }
 
   obtener(id: string): Observable<OrderDetail> {

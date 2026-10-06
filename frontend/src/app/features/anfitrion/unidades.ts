@@ -8,13 +8,14 @@ import { CampoMensajeComponent, conError } from '../../shared/campo';
 import { ConfirmarService } from '../../shared/confirmar';
 import { fechaMasDias } from '../../shared/fechas';
 import { fechaConDia } from '../../shared/textos';
-import { traducirMotivoApi } from '../../shared/validadores';
+import { FiltroDirective } from '../../shared/entrada';
+import { motivoPrecio, motivoRango, traducirMotivoApi } from '../../shared/validadores';
 import { FormUnidad, grupoUnidad, L, Modalidad } from './alojamiento-form';
 
 /** Campos de una unidad (los mismos en el asistente y en la edición). `completo` oculta nombre y cantidad. */
 @Component({
   selector: 'app-campos-unidad',
-  imports: [ReactiveFormsModule, CampoMensajeComponent],
+  imports: [ReactiveFormsModule, CampoMensajeComponent, FiltroDirective],
   template: `
     <div class="campos-unidad" [formGroup]="grupo()">
       @if (!completo()) {
@@ -27,7 +28,7 @@ import { FormUnidad, grupoUnidad, L, Modalidad } from './alojamiento-form';
           </div>
           <div class="grupo">
             <label [for]="p() + 'cantidad'">Disponibles</label>
-            <input [id]="p() + 'cantidad'" type="number" formControlName="cantidad" min="1" [max]="U.cantidad" step="1"
+            <input [id]="p() + 'cantidad'" appFiltro="entero" formControlName="cantidad" maxlength="3" placeholder="1"
                    [attr.aria-invalid]="mal('cantidad')" [attr.aria-describedby]="p() + 'a-cant ' + p() + 'm-cant'" />
             <small [id]="p() + 'a-cant'" class="ayuda">Cuántas habitaciones iguales de este tipo tienes.</small>
             <app-campo-mensaje [control]="grupo().controls.cantidad" [id]="p() + 'm-cant'" [mostrarOk]="false" />
@@ -38,7 +39,7 @@ import { FormUnidad, grupoUnidad, L, Modalidad } from './alojamiento-form';
         @for (c of campos; track c.id) {
           <div class="grupo">
             <label [for]="p() + c.id">{{ c.etiqueta }}</label>
-            <input [id]="p() + c.id" type="number" [formControlName]="c.id" [min]="c.min" [max]="c.max" [step]="c.paso"
+            <input [id]="p() + c.id" [appFiltro]="c.tipo" [formControlName]="c.id" [attr.maxlength]="c.largo" [placeholder]="c.ejemplo"
                    [attr.aria-invalid]="mal(c.id)" [attr.aria-describedby]="p() + 'm-' + c.id" />
             <app-campo-mensaje [control]="grupo().get(c.id)" [id]="p() + 'm-' + c.id" [mostrarOk]="false" />
           </div>
@@ -54,11 +55,11 @@ export class CamposUnidadComponent {
   readonly p = input.required<string>();
   readonly U = L.unidad;
   readonly campos = [
-    { id: 'precio_noche_base', etiqueta: 'Precio por noche (USD)', min: 1, max: L.unidad.precio.max, paso: 0.01 },
-    { id: 'capacidad_huespedes', etiqueta: 'Huéspedes', min: 1, max: L.unidad.capacidad, paso: 1 },
-    { id: 'num_habitaciones', etiqueta: 'Dormitorios', min: 0, max: L.unidad.habitaciones, paso: 1 },
-    { id: 'num_camas', etiqueta: 'Camas', min: 1, max: L.unidad.camas, paso: 1 },
-    { id: 'num_banos', etiqueta: 'Baños', min: 0, max: L.unidad.banos, paso: 1 },
+    { id: 'precio_noche_base', etiqueta: 'Precio por noche (USD)', tipo: 'decimal', largo: 9, ejemplo: '105,00' },
+    { id: 'capacidad_huespedes', etiqueta: 'Huéspedes', tipo: 'entero', largo: 2, ejemplo: '2' },
+    { id: 'num_habitaciones', etiqueta: 'Dormitorios', tipo: 'entero', largo: 2, ejemplo: '1' },
+    { id: 'num_camas', etiqueta: 'Camas', tipo: 'entero', largo: 3, ejemplo: '1' },
+    { id: 'num_banos', etiqueta: 'Baños', tipo: 'entero', largo: 2, ejemplo: '1' },
   ] as const;
   mal(c: string): boolean {
     return conError(this.grupo().get(c));
@@ -70,7 +71,7 @@ export class CamposUnidadComponent {
   selector: 'app-unidades-nuevas',
   imports: [CamposUnidadComponent],
   template: `
-    <p class="ayuda">Aquí defines lo que el huésped reserva y a qué precio por noche. Podrás cambiar precios por fecha después, en el calendario.</p>
+    <p class="ayuda">Aquí defines lo que el huésped reserva y a qué precio por noche. Si alguna fecha necesita otro precio (feriados, temporada alta), podrás ajustarla después en "Precios y disponibilidad por fecha".</p>
     @if (modalidad() === 'COMPLETO') {
       <section class="unidad-tarjeta">
         <h3>🏠 Todo el alojamiento</h3>
@@ -97,11 +98,19 @@ export class UnidadesNuevasComponent {
   readonly lista = input.required<FormArray<FormUnidad>>();
   readonly modalidad = input.required<Modalidad>();
   private readonly fb = inject(FormBuilder);
+  private readonly confirmar = inject(ConfirmarService);
   agregar(): void {
     this.lista().push(grupoUnidad(this.fb));
   }
-  quitar(i: number): void {
-    this.lista().removeAt(i);
+  async quitar(i: number): Promise<void> {
+    const nombre = (this.lista().at(i).controls.nombre.value ?? '').trim();
+    const si = await this.confirmar.pedir({
+      titulo: '¿Quitar este tipo de habitación?',
+      mensaje: `Se quitará ${nombre ? `«${nombre}»` : 'esta opción'} y los datos que escribiste en ella.`,
+      confirmar: 'Quitar',
+      tono: 'peligro',
+    });
+    if (si) this.lista().removeAt(i);
   }
 }
 
@@ -133,7 +142,7 @@ export class UnidadesNuevasComponent {
           @if (editando() === u.id && formEdicion(); as g) {
             <app-campos-unidad [grupo]="g" [completo]="unica()" [p]="'e-' + $index + '-'" />
             <div class="acciones">
-              <button type="button" class="btn btn-secundario" (click)="guardar(u)" [disabled]="trabajando()">{{ trabajando() ? 'Guardando…' : 'Guardar cambios' }}</button>
+              <button type="button" class="btn btn-secundario" (click)="guardar(u)" [disabled]="trabajando() || g.invalid">{{ trabajando() ? 'Guardando…' : 'Guardar cambios' }}</button>
               <button type="button" class="btn" (click)="editando.set(null)">Cancelar</button>
             </div>
           } @else {
@@ -161,7 +170,7 @@ export class UnidadesNuevasComponent {
         <h3>{{ modalidadNueva() === 'COMPLETO' ? '🏠 Todo el alojamiento' : '🛏️ Nueva habitación' }}</h3>
         <app-campos-unidad [grupo]="g" [completo]="modalidadNueva() === 'COMPLETO'" p="n-" />
         <div class="acciones">
-          <button type="button" class="btn btn-secundario" (click)="crear()" [disabled]="trabajando()">{{ trabajando() ? 'Guardando…' : 'Agregar' }}</button>
+          <button type="button" class="btn btn-secundario" (click)="crear()" [disabled]="trabajando() || g.invalid">{{ trabajando() ? 'Guardando…' : 'Agregar' }}</button>
           <button type="button" class="btn" (click)="formNueva.set(null)">Cancelar</button>
         </div>
       </section>
@@ -293,51 +302,75 @@ export class UnidadesPanelComponent {
   }
 }
 
-/** Edición: precios y cupo por fecha de una unidad. */
+/**
+ * Edición: precio especial y habitaciones a la venta por fecha de una unidad (GET/PUT units/:id/calendar).
+ * Es opcional y viene plegado: vacío = precio normal y todas las habitaciones disponibles.
+ */
 @Component({
   selector: 'app-calendario-panel',
-  imports: [CurrencyPipe, FormsModule],
+  imports: [CurrencyPipe, FormsModule, FiltroDirective],
   template: `
-    @if (!unidades().length) {
-      <p class="ayuda">Primero agrega lo que ofreces en "Habitaciones y precios"; luego podrás cambiar precios o cerrar fechas aquí.</p>
-    } @else {
-      <p class="ayuda">Cambia el precio de fechas concretas (temporada alta, feriados) o cierra días. Deja vacío para usar el precio y la cantidad normales.</p>
-      <div class="fila">
-        @if (unidades().length > 1) {
-          <label>Habitación
-            <select [ngModel]="unidadId()" (ngModelChange)="elegir($event)">
-              @for (u of unidades(); track u.id) { <option [value]="u.id">{{ u.nombre }}</option> }
-            </select>
-          </label>
+    <p class="ayuda" id="ayuda-calendario">Úsalo solo si quieres cobrar un precio distinto en fechas puntuales (feriados, temporada alta) o vender menos habitaciones un día. Si lo dejas vacío se usa el precio normal y todas las habitaciones disponibles.</p>
+    <button type="button" class="btn" (click)="alternar()" [attr.aria-expanded]="abierto()" aria-controls="calendario-contenido">
+      {{ abierto() ? 'Ocultar precios por fecha' : 'Ajustar precios por fecha' }}
+    </button>
+    @if (abierto()) {
+      <div id="calendario-contenido">
+        @if (!unidades().length) {
+          <p class="ayuda">Primero agrega lo que ofreces en "Habitaciones y precios"; luego podrás ajustar fechas aquí.</p>
+        } @else {
+          <div class="fila">
+            @if (unidades().length > 1) {
+              <label>Habitación
+                <select [ngModel]="unidadId()" (ngModelChange)="elegir($event)">
+                  @for (u of unidades(); track u.id) { <option [value]="u.id">{{ u.nombre }}</option> }
+                </select>
+              </label>
+            }
+            <label>Desde <input type="date" [(ngModel)]="desde" [min]="hoy" /></label>
+            <label>Hasta <input type="date" [(ngModel)]="hasta" [min]="desde" /></label>
+            <button class="btn" type="button" (click)="cargar()" [disabled]="!!problemaRango()">Ver fechas</button>
+          </div>
+          @if (problemaRango(); as p) { <p class="msg-campo msg-error" role="alert"><span aria-hidden="true">✗</span> {{ p }}</p> }
+          @if (dias().length) {
+            <div class="tabla-scroll">
+              <table class="tabla">
+                <thead><tr><th>Fecha</th><th>Precio especial (USD)</th><th>Habitaciones a la venta ese día</th><th>Precio que se cobra</th><th>Libres</th></tr></thead>
+                <tbody>
+                  @for (d of dias(); track d.fecha) {
+                    <tr>
+                      <td>{{ fecha(d.fecha) }}</td>
+                      <td class="calendario-celda">
+                        <input appFiltro="decimal" maxlength="9" [placeholder]="precioNormal()" [(ngModel)]="d.precio_noche" (ngModelChange)="marcar(d.fecha)"
+                               [attr.aria-label]="'Precio especial ' + fecha(d.fecha)" [attr.aria-invalid]="!!problemaPrecio(d)"
+                               [attr.aria-describedby]="problemaPrecio(d) ? 'cal-p-' + d.fecha : null" />
+                        @if (problemaPrecio(d); as p) { <small class="msg-campo msg-error" [id]="'cal-p-' + d.fecha">{{ p }}</small> }
+                      </td>
+                      <td class="calendario-celda">
+                        <input appFiltro="entero" maxlength="3" [placeholder]="cantidadNormal()" [(ngModel)]="d.cantidad_a_la_venta" (ngModelChange)="marcar(d.fecha)"
+                               [attr.aria-label]="'Habitaciones a la venta ' + fecha(d.fecha)" [attr.aria-invalid]="!!problemaCantidad(d)"
+                               [attr.aria-describedby]="problemaCantidad(d) ? 'cal-c-' + d.fecha : null" />
+                        @if (problemaCantidad(d); as p) { <small class="msg-campo msg-error" [id]="'cal-c-' + d.fecha">{{ p }}</small> }
+                      </td>
+                      <td>{{ d.precio_efectivo | currency: 'USD' }}</td>
+                      <td>{{ d.cupo_libre }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <p class="ayuda">Pon 0 para cerrar ese día. Deja la casilla vacía para volver al precio o a la cantidad normal.</p>
+            <div class="acciones">
+              <button class="btn btn-secundario" type="button" (click)="guardar()" [disabled]="!cambiados().size || trabajando() || hayErrores()">
+                {{ trabajando() ? 'Guardando…' : 'Guardar cambios (' + cambiados().size + ')' }}</button>
+              <button class="btn" type="button" (click)="descartar()" [disabled]="!cambiados().size || trabajando()">Descartar cambios</button>
+              @if (cambiados().size) { <span class="estado-seccion pendiente">Cambios sin guardar</span> }
+            </div>
+          }
         }
-        <label>Desde <input type="date" [(ngModel)]="desde" [min]="hoy" /></label>
-        <label>Hasta <input type="date" [(ngModel)]="hasta" [min]="desde" /></label>
-        <button class="btn" type="button" (click)="cargar()">Ver fechas</button>
+        @if (ok.texto()) { <p class="aviso-guardado ok" role="status">✓ {{ ok.texto() }}</p> }
+        @if (error()) { <p class="aviso-guardado error" role="alert">✗ {{ error() }}</p> }
       </div>
-      @if (dias().length) {
-        <div class="tabla-scroll">
-          <table class="tabla">
-            <thead><tr><th>Fecha</th><th>Precio especial (USD)</th><th>Disponibles ese día</th><th>Precio que se cobra</th><th>Libres</th></tr></thead>
-            <tbody>
-              @for (d of dias(); track d.fecha) {
-                <tr>
-                  <td>{{ fecha(d.fecha) }}</td>
-                  <td><input type="number" min="1" [(ngModel)]="d.precio_noche" (ngModelChange)="marcar(d.fecha)" [attr.aria-label]="'Precio especial ' + d.fecha" /></td>
-                  <td><input type="number" min="0" [(ngModel)]="d.cantidad_a_la_venta" (ngModelChange)="marcar(d.fecha)" [attr.aria-label]="'Disponibles ' + d.fecha" /></td>
-                  <td>{{ d.precio_efectivo | currency: 'USD' }}</td>
-                  <td>{{ d.cupo_libre }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-        <p class="ayuda">0 disponibles = cerrado ese día.</p>
-        <button class="btn btn-secundario" type="button" (click)="guardar()" [disabled]="!cambiados().size || trabajando()">
-          {{ trabajando() ? 'Guardando…' : 'Guardar cambios (' + cambiados().size + ')' }}</button>
-        <span class="estado-seccion" [class.pendiente]="cambiados().size">{{ cambiados().size ? 'Cambios sin guardar' : (ok.texto() ? 'Guardado' : 'Sin cambios') }}</span>
-      }
-      @if (ok.texto()) { <p class="aviso-guardado ok" role="status">✓ {{ ok.texto() }}</p> }
-      @if (error()) { <p class="aviso-guardado error" role="alert">✗ {{ error() }}</p> }
     }
   `,
 })
@@ -347,16 +380,37 @@ export class CalendarioPanelComponent {
   readonly ok = avisoTemporal();
   readonly hoy = fechaMasDias(0);
   readonly fecha = fechaConDia;
+  /** Plegado por defecto: es un ajuste opcional. */
+  readonly abierto = signal(false);
   readonly unidadId = signal<string | null>(null);
   readonly dias = signal<DiaCalendario[]>([]);
+  /** Copia de lo cargado, para "Descartar cambios". */
+  private originales: DiaCalendario[] = [];
   readonly cambiados = signal(new Set<string>());
   readonly trabajando = signal(false);
   readonly error = signal('');
   desde = fechaMasDias(0);
   hasta = fechaMasDias(30);
 
-  /** Abre el calendario de una unidad concreta (desde "Precios por fecha"). */
+  private readonly unidad = computed(() => this.unidades().find((u) => u.id === this.unidadId()) ?? this.unidades()[0]);
+  /** Placeholders con el valor normal de la unidad ("105,00" / "3"). */
+  readonly precioNormal = computed(() => {
+    const u = this.unidad();
+    return u ? Number(u.precio_noche_base).toFixed(2).replace('.', ',') : '';
+  });
+  readonly cantidadNormal = computed(() => {
+    const u = this.unidad();
+    return u ? String(u.cantidad) : '';
+  });
+
+  alternar(): void {
+    this.abierto.update((a) => !a);
+    if (this.abierto() && !this.dias().length) this.cargar();
+  }
+
+  /** Abre el panel en una unidad concreta (botón "Precios por fecha" de la unidad). */
   abrir(u: Unidad): void {
+    this.abierto.set(true);
     this.elegir(u.id);
   }
 
@@ -369,14 +423,33 @@ export class CalendarioPanelComponent {
     return this.cambiados().size > 0;
   }
 
+  problemaRango(): string {
+    if (!this.desde || !this.hasta) return 'Elige las fechas "Desde" y "Hasta".';
+    if (this.hasta < this.desde) return '"Hasta" no puede ser antes de "Desde".';
+    return '';
+  }
+  /** Vacío = precio normal; si se escribe, mayor que 0 (mín. 1 USD como el backend) y hasta 2 decimales. */
+  problemaPrecio(d: DiaCalendario): string | null {
+    return motivoPrecio(d.precio_noche, L.unidad.precio.min, L.unidad.precio.max, false);
+  }
+  problemaCantidad(d: DiaCalendario): string | null {
+    return motivoRango(d.cantidad_a_la_venta, 0, L.unidad.cantidad, { entero: true });
+  }
+  hayErrores(): boolean {
+    return this.dias().some((d) => this.cambiados().has(d.fecha) && (!!this.problemaPrecio(d) || !!this.problemaCantidad(d)));
+  }
+
   cargar(): void {
     const id = this.unidadId() ?? this.unidades()[0]?.id;
-    if (!id) return;
+    if (!id || this.problemaRango()) return;
     this.unidadId.set(id);
     this.error.set('');
     this.cambiados.set(new Set());
     this.api.calendario(id, this.desde, this.hasta).subscribe({
-      next: (d) => this.dias.set(d),
+      next: (d) => {
+        this.originales = d.map((x) => ({ ...x }));
+        this.dias.set(d);
+      },
       error: (e) => this.error.set(leerError(e).mensaje),
     });
   }
@@ -385,9 +458,16 @@ export class CalendarioPanelComponent {
     this.cambiados.update((s) => new Set(s).add(fecha));
   }
 
+  /** Vuelve a los valores cargados, sin llamar al API. */
+  descartar(): void {
+    this.dias.set(this.originales.map((x) => ({ ...x })));
+    this.cambiados.set(new Set());
+    this.error.set('');
+  }
+
   guardar(): void {
     const id = this.unidadId();
-    if (!id) return;
+    if (!id || this.hayErrores()) return;
     const vacio = (x: number | null | string) => (x === null || x === '' ? null : Number(x));
     const dias = this.dias()
       .filter((d) => this.cambiados().has(d.fecha))

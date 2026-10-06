@@ -2,15 +2,17 @@ import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { EventoTraza, Factura, Liquidacion, MiOrden } from '../../core/models/api.models';
+import { DetalleAlojamiento, EventoTraza, Factura, Liquidacion, MiOrden } from '../../core/models/api.models';
 import { ErrorVista, leerError } from '../../core/services/api-base';
 import { CatalogoService } from '../../core/services/catalogo.service';
 import { ReservasService } from '../../core/services/reservas.service';
 import { fechaMasDias } from '../../shared/fechas';
 import { avisoTemporal } from '../../shared/aviso';
 import { SelectorEstrellasComponent } from '../../shared/calificacion';
+import { PagoComponent } from '../../shared/pago';
 import { problemaResena, RESENA } from '../../shared/texto-libre';
 import { rangoLargo } from '../../shared/textos';
+import { instanteCheckin, lineaCancelacion } from '../../shared/cancelacion';
 import { ConfirmarService } from '../../shared/confirmar';
 import { AlertaErrorComponent, CargandoComponent, EstadoComponent } from '../../shared/ui';
 
@@ -26,7 +28,7 @@ const GRUPO: Record<string, Pestana> = {
 
 @Component({
   selector: 'app-mis-reservas',
-  imports: [CurrencyPipe, DatePipe, FormsModule, RouterLink, AlertaErrorComponent, CargandoComponent, EstadoComponent, SelectorEstrellasComponent],
+  imports: [CurrencyPipe, DatePipe, FormsModule, RouterLink, AlertaErrorComponent, CargandoComponent, EstadoComponent, SelectorEstrellasComponent, PagoComponent],
   template: `
     <div class="pagina-cabecera">
       <h1>Mis viajes</h1>
@@ -56,12 +58,16 @@ const GRUPO: Record<string, Pestana> = {
                 <div class="viaje-titulo">
                   <h2><a [routerLink]="['/alojamientos', o.accommodation_details.id]">{{ o.accommodation_details.name }}</a></h2>
                   <app-estado [estado]="o.estado_interno" />
+                  @if (o.estado_interno === 'CONFIRMADA' || o.estado_interno === 'COMPLETADA') {
+                    <app-pago [metodo]="o.metodo_pago" [estado]="o.estado_pago" vista="huesped" />
+                  }
                 </div>
                 @if (ciudades()[o.accommodation_details.id]; as ciudad) { <p class="meta">📍 {{ ciudad }}</p> }
                 <ul class="viaje-datos">
                   <li><span aria-hidden="true">📅</span> {{ o.accommodation_details.checkin | date: 'd MMM' }} – {{ o.accommodation_details.checkout | date: 'd MMM y' }}</li>
                   <li><span aria-hidden="true">👥</span> {{ o.accommodation_details.guests }} huésped{{ o.accommodation_details.guests === 1 ? '' : 'es' }}</li>
                   <li><span aria-hidden="true">🧾</span> Código de reserva <strong>{{ o.locator }}</strong></li>
+                  @if (o._links['cancel'] && politicaDe(o); as linea) { <li><span aria-hidden="true">↩️</span> {{ linea }}</li> }
                 </ul>
                 <p class="viaje-total">Total <strong>{{ o.total_price | currency: 'USD' }}</strong></p>
                 <div class="acciones">
@@ -97,8 +103,9 @@ const GRUPO: Record<string, Pestana> = {
                         <form class="fila" (ngSubmit)="modificar(o)">
                           <label>Nueva entrada <input type="date" name="ci" [(ngModel)]="nuevaEntrada" [min]="manana" required /></label>
                           <label>Nueva salida <input type="date" name="co" [(ngModel)]="nuevaSalida" [min]="nuevaEntrada" required /></label>
-                          <button class="btn btn-primario" type="submit" [disabled]="trabajando()">Guardar cambios</button>
+                          <button class="btn btn-primario" type="submit" [disabled]="trabajando() || !!problemaFechas(o)" [attr.aria-describedby]="'msg-mod-' + o.order_id">Guardar cambios</button>
                         </form>
+                        @if (problemaFechas(o); as p) { <p class="msg-campo msg-error" [id]="'msg-mod-' + o.order_id" role="alert"><span aria-hidden="true">✗</span> {{ p }}</p> }
                         <p class="ayuda">El precio se recalcula; la diferencia se cobra o se reembolsa (simulado).</p>
                       }
                       @case ('factura') {
@@ -112,7 +119,6 @@ const GRUPO: Record<string, Pestana> = {
                             <dt>IVA</dt><dd>{{ f.iva | currency: 'USD' }}</dd>
                             <dt class="total">Total</dt><dd class="total">{{ f.total | currency: 'USD' }}</dd>
                           </dl>
-                          <p class="ayuda">Factura simulada (sin autorización del SRI).</p>
                         } @else if (!errorPanel()) { <app-cargando /> }
                       }
                       @case ('resena') {
@@ -170,6 +176,8 @@ export class MisReservasComponent implements OnInit {
   readonly pestana = signal<Pestana>('proximas');
   readonly ordenes = signal<MiOrden[]>([]);
   readonly ciudades = signal<Record<number, string>>({});
+  /** Política de cancelación y hora de check-in de cada alojamiento (de /details con extras=policies). */
+  readonly politicas = signal<Record<number, NonNullable<DetalleAlojamiento['policies']>>>({});
   readonly total = signal(0);
   readonly offset = signal(0);
   readonly cargando = signal(true);
@@ -232,13 +240,26 @@ export class MisReservasComponent implements OnInit {
     });
   }
 
-  /** La ciudad no viene en /me/orders: se toma de /details (si falla, simplemente no se muestra). */
+  /**
+   * La ciudad y la política no vienen en /me/orders: se toman de /details (si falla, simplemente no se muestran).
+   * Es la política vigente del alojamiento; el reembolso exacto de ESTA reserva lo da cancel-preview al cancelar.
+   */
   private cargarCiudades(items: MiOrden[]): void {
     const ids = [...new Set(items.map((o) => o.accommodation_details.id))];
-    this.catalogo.detalles(ids).subscribe({
-      next: (d) => this.ciudades.set(Object.fromEntries(d.map((a) => [a.id, `${a.city.name}, ${a.city.province}`]))),
+    this.catalogo.detalles(ids, ['policies']).subscribe({
+      next: (d) => {
+        this.ciudades.set(Object.fromEntries(d.map((a) => [a.id, `${a.city.name}, ${a.city.province}`])));
+        this.politicas.set(Object.fromEntries(d.filter((a) => a.policies).map((a) => [a.id, a.policies!])));
+      },
       error: () => undefined,
     });
+  }
+
+  /** "Cancelación gratis hasta el 9 nov, 14:00 · …" con las fechas de esta reserva ('' si no hay datos). */
+  politicaDe(o: MiOrden): string {
+    const p = this.politicas()[o.accommodation_details.id];
+    if (!p?.cancellation) return '';
+    return lineaCancelacion(p.cancellation.name, p.cancellation.rules ?? [], instanteCheckin(o.accommodation_details.checkin, p.checkin_from));
   }
 
   pagina(delta: number): void {
@@ -280,9 +301,11 @@ export class MisReservasComponent implements OnInit {
         const si = await this.confirmar.pedir({
           titulo: '¿Cancelar esta reserva?',
           mensaje: `Vas a cancelar tu reserva en «${o.accommodation_details.name}» (${rangoLargo(o.accommodation_details.checkin, o.accommodation_details.checkout)}, código de reserva ${o.locator}). No se puede deshacer.`,
-          detalle: l.penalty > 0
-            ? `Faltan ${Math.round(l.horas_anticipacion)} h para el check-in: se cobra una penalidad del ${l.porcentaje_aplicado} % del hospedaje (${usd(l.penalty)}). Te devolvemos ${usd(l.refund)}.`
-            : `Sin penalidad: te devolvemos ${usd(l.refund)}.`,
+          detalle: o.estado_pago === 'PENDIENTE'
+            ? 'Elegiste pagar en efectivo y aún no has pagado: no se cobra nada ni hay reembolso.'
+            : l.penalty > 0
+              ? `Faltan ${Math.round(l.horas_anticipacion)} h para el check-in: se cobra una penalidad del ${l.porcentaje_aplicado} % del hospedaje (${usd(l.penalty)}). Te devolvemos ${usd(l.refund)}.`
+              : `Sin penalidad: te devolvemos ${usd(l.refund)}.`,
           confirmar: 'Sí, cancelar reserva',
           cancelar: 'Mantener reserva',
           tono: 'peligro',
@@ -306,7 +329,17 @@ export class MisReservasComponent implements OnInit {
     });
   }
 
+  /** Validación de las nuevas fechas antes de llamar al API ('' = válidas). */
+  problemaFechas(o: MiOrden): string {
+    if (!this.nuevaEntrada || !this.nuevaSalida) return 'Elige la nueva entrada y la nueva salida.';
+    if (this.nuevaEntrada < this.manana) return 'La nueva entrada debe ser a partir de mañana.';
+    if (this.nuevaSalida <= this.nuevaEntrada) return 'La salida debe ser al menos un día después de la entrada.';
+    if (this.nuevaEntrada === o.accommodation_details.checkin && this.nuevaSalida === o.accommodation_details.checkout) return 'Las fechas son las mismas de la reserva.';
+    return '';
+  }
+
   modificar(o: MiOrden): void {
+    if (this.problemaFechas(o)) return;
     this.trabajando.set(true);
     this.reservas.modificar(o.order_id, { checkin: this.nuevaEntrada, checkout: this.nuevaSalida }).subscribe({
       next: (r) => this.terminar(`Reserva ${r.locator} modificada. Nuevo total: USD ${r.total_price.toFixed(2)}`),

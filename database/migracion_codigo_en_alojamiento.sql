@@ -1,7 +1,8 @@
 -- =====================================================================
 --  MIGRACIÓN: código público del alojamiento -> columna alojamiento.codigo
---  Para BDs creadas con la versión anterior (tabla 1 a 1 "alojamiento_codigo", 29 tablas).
---  Resultado: 28 tablas; los códigos existentes NO cambian; los nuevos siguen después del mayor.
+--  Para BDs creadas con una versión anterior (con la tabla 1 a 1 "alojamiento_codigo").
+--  Resultado: alojamiento.codigo reemplaza a esa tabla; los códigos existentes NO cambian; los nuevos siguen después del mayor.
+--  En una BD de esa época, ejecutar después migracion_admin_dueno.sql y migracion_sin_reportes.sql (resultado final: 27 tablas).
 --
 --  Idempotente: si ya está migrada, no cambia nada (solo vuelve a escribir los comentarios de tabla).
 --  Todo ocurre en UNA transacción: si algo falla, no queda nada a medias.
@@ -67,7 +68,7 @@ BEGIN
     (SELECT count(*) FROM alojamiento), v_siguiente;
 END $$;
 
--- Documentación de las 28 tablas (mismo texto que en 01 y 03)
+-- Documentación de las tablas (texto de esa versión; migracion_sin_reportes.sql quita después la tabla reporte)
 COMMENT ON TABLE usuario                    IS 'Cuentas de personas (huésped y/o anfitrión) y administradores: datos de acceso y, opcionalmente, de facturación.';
 COMMENT ON TABLE token_usuario              IS 'Tokens de un solo uso (recuperar clave, verificar correo): solo se guarda su hash SHA-256 y su vencimiento.';
 COMMENT ON TABLE ciudad                     IS 'Localidades donde hay alojamientos (provincia, nombre y coordenadas); sirven para buscar y filtrar.';

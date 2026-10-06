@@ -32,7 +32,7 @@ Nota: la previsualización de cancelación (`GET /orders/:id/cancel-preview`) ej
 **No se tocó la BD** (ni Supabase ni `database/`). No se ejecutaron comandos docker ni git.
 
 - Respaldo previo de `backend/src` (95 archivos) en `..\respaldo_backend_src` (fuera del proyecto). Se puede borrar cuando confirmes que todo está bien.
-- Nuevo `docker-compose.yml` en la raíz (Postgres 16 + los 3 scripts de `database/` en solo lectura). **Sin probar**: correr `docker compose up -d` y arrancar el backend con `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/booking_db`; debe decir `BD verificada: 28 tablas` (eran 29 antes de fundir `alojamiento_codigo`, ver sesión del 2026-10-05). Si algún script falla en Postgres puro (están probados en Supabase), revisar `docker logs booking_db_container`.
+- Nuevo `docker-compose.yml` en la raíz (Postgres 16 + los 3 scripts de `database/` en solo lectura). **Sin probar**: correr `docker compose up -d` y arrancar el backend con `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/booking_db`; debe decir `BD verificada: 27 tablas` (con los scripts actuales). Si algún script falla en Postgres puro (están probados en Supabase), revisar `docker logs booking_db_container`.
 - SSL condicional (`usarSsl` en `database.module.ts`): sin SSL en `localhost`/`127.0.0.1`/`::1`, con SSL en cualquier otro host.
 - Auditoría de accesos (`common/logging/auditoria.ts`): `login_ok`, `login_fallido` (correo enmascarado), `acceso_401`, `acceso_403`, con `correlation_id`, `ip`, método, ruta y `usuario_id`. **Sin probar contra la BD** (sin conexión): verificar en los logs al hacer login correcto/incorrecto y al llamar una ruta protegida sin token o con un rol que no corresponde.
 - Borrados: `template/`, `backend/contracts/`, módulos `atracciones`/`autos`/`vuelos`, archivos sin uso de la plantilla en `alojamientos/` y `common/dto/`, `common/transformers/`, `backend/README.md`, `backend/tsconfig.build.tsbuildinfo`, `backend/docker-compose.yml`. `PROMPT_UNICO.md` se movió a `docs/`.
@@ -41,17 +41,36 @@ Nota: la previsualización de cancelación (`GET /orders/:id/cancel-preview`) ej
 - `backend/tsconfig.build.json` aún excluye `src/modules/{atracciones,autos,vuelos}` y `app.module.ts` conserva esos imports comentados: inofensivos, se pueden limpiar.
 - `backend/.git` (clon de la plantilla) sigue dentro de `backend/`; si se crea un repo en la raíz, decidir si se elimina para no tener un repo anidado.
 
-## Sesión 4 (2026-10-05) — código público dentro de lojamiento (28 tablas)
+## Sesión 4 (2026-10-05) — código público dentro de alojamiento
 
 - `alojamiento_codigo` se fundió en la columna `alojamiento.codigo` (identity desde 1001, única). Docker local migrado con `database/migracion_codigo_en_alojamiento.sql`; los 21 códigos existentes se conservaron (1001–1021) y el próximo será 1023 (el 1022 lo consumió un INSERT de prueba deshecho con ROLLBACK).
-- **Pendiente (tú):** ejecutar la misma migración en **Supabase** (SQL Editor, pegar el archivo completo). Hasta entonces, el backend nuevo no arranca contra Supabase (espera 28 tablas) y el backend viejo no arranca contra Docker.
+- **Pendiente (tú):** ejecutar la misma migración en **Supabase** (SQL Editor, pegar el archivo completo). Hasta entonces, el backend nuevo no arranca contra Supabase (verifica el número de tablas al iniciar).
 - Respaldos: `respaldo_database_pre_codigo`, `respaldo_backend_src_pre_codigo` y `respaldo_pre_codigo.dump` (pg_dump del schema booking) en el Escritorio.
-- `docs/PROMPT_UNICO.md` no se modificó (documento histórico; aún dice 29 tablas).
+- `docs/PROMPT_UNICO.md` no se modificó (documento histórico, con cifras de una versión anterior; se borrará en la limpieza final).
 
 ## Sesión 5 (2026-10-05) — simplificación: dos actores (27 tablas)
 
 - El admin administra el catálogo (rutas de catálogo solo ADMIN, editor reutilizado bajo `/admin/alojamientos`); sin portal de anfitriones ni denuncias; toda reserva se confirma al pagar; reseñas con control automático.
 - **Pendiente (tú):** ejecutar en `booking_db` (Docker) **y** en Supabase, en este orden: `migracion_admin_dueno.sql` → `migracion_sin_reportes.sql` → `datos_modo_inmediato.sql` → `datos_admin_emisor.sql`. Hasta entonces el backend nuevo no arranca (espera 27 tablas).
 - Probado solo en bases temporales (copias con `pg_dump`, ya borradas) y con un backend temporal en el puerto 3100 (49 pruebas OK). No se probó en el navegador contra el backend real.
-- La reserva demo que estaba PENDIENTE (modo por solicitud) se deja expirar con el job; mientras tanto el admin puede confirmarla o rechazarla en Administración → Reservas.
 - Respaldos: `respaldo_frontend_src_pre_simple`, `respaldo_backend_src_pre_simple`, `respaldo_database_pre_simple` en el Escritorio.
+
+## Sesión 6 (2026-10-06) — limpieza: solicitudes, campos legales, tipos y validaciones
+
+- Sin flujo por solicitud en código (endpoint de respuesta, DTO y job eliminados; las funciones de BD quedan sin uso). Sin LUAF ni registro de turismo en la interfaz, DTO y servicios (columnas conservadas). Recuperar contraseña oculta en la interfaz. 5 tipos de alojamiento y sin opción de crear tipos. Validación de búsqueda y de "Modificar reserva".
+- **Pendiente (tú):** ejecutar en `booking_db` (Docker) **y** en Supabase, en este orden: `datos_sin_pendientes.sql` → `datos_iva_feriados.sql` → `datos_tipos_alojamiento.sql`.
+- Los SQL se probaron con PGlite (PostgreSQL embebido, en memoria) porque Docker Desktop estaba apagado; no se tocó `booking_db`.
+- Respaldos: `respaldo_frontend_src_pre_k`, `respaldo_backend_src_pre_k`, `respaldo_database_pre_k` en el Escritorio.
+
+## Sesión 7 (2026-10-06) — pago en efectivo y confirmaciones
+
+- **Pendiente (tú):** ejecutar `database/migracion_pago_metodo.sql` en `booking_db` (Docker) y luego en Supabase. Sin la columna `pago.metodo`, los listados de reservas fallan.
+- Probado con PGlite (BD en memoria servida por protocolo PostgreSQL) y un backend temporal en el puerto 3100: 20 pruebas OK. Respaldos `respaldo_*_pre_l` en el Escritorio.
+- Los indicadores de ventas del dashboard cuentan las reservas confirmadas, también las de efectivo aún no cobrado.
+
+## Sesión 8 (2026-10-06) — se quitan los aeropuertos y Docker queda al día
+
+- Sin tablas `aeropuerto` y `alojamiento_aeropuerto` (25 tablas); `fn_buscar_alojamientos` sin parámetros de aeropuerto; quitados del backend (admin, búsqueda, detalle, constantes, formulario del anfitrión) y del frontend (filtros de búsqueda, tarjeta, detalle, formulario). Se conservan las ciudades y la amenidad «Transporte desde/hacia el aeropuerto».
+- Docker (`booking_db_container`) se actualizó aplicando, en orden, las migraciones que le faltaban más `migracion_sin_aeropuertos.sql` (respaldo previo con `pg_dump`). Una BD nueva con `01`→`02`→`03` ya queda en 25 tablas.
+- **Pendiente (tú):** ejecutar `database/migracion_sin_aeropuertos.sql` en Supabase (SQL Editor) **antes** de desplegar el backend nuevo en Render. Mientras Supabase tenga 27 tablas, el backend nuevo no arranca (espera 25); y mientras Render siga con el código anterior, ejecutar la migración rompe su búsqueda hasta el redespliegue.
+- `docs/PROMPT_UNICO.md` sigue siendo histórico y aún menciona aeropuertos.

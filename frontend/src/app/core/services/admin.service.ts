@@ -21,7 +21,6 @@ export interface Catalogos {
   amenidades: { id: number; nombre: string; categoria: string }[];
   politicas: { id: number; nombre: string; descripcion: string }[];
   ciudades: { id: number; provincia: string; nombre: string }[];
-  aeropuertos: { id: number; codigo_iata: string; nombre: string; ciudad_id: number }[];
 }
 
 const datos = <T>(o: Observable<RespuestaApi<T>>) => o.pipe(map((r) => r.data));
@@ -61,7 +60,7 @@ export class AdminService {
   catalogos(): Observable<Catalogos> {
     return datos(this.http.get<RespuestaApi<Catalogos>>(`${this.base}/catalogs`));
   }
-  crearCatalogo(tipo: 'amenities' | 'types' | 'cities' | 'airports', cuerpo: object): Observable<Fila> {
+  crearCatalogo(tipo: 'amenities' | 'cities', cuerpo: object): Observable<Fila> {
     return datos(this.http.post<RespuestaApi<Fila>>(`${this.base}/catalogs/${tipo}`, cuerpo));
   }
   impuestos(): Observable<Fila[]> {

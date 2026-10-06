@@ -19,8 +19,8 @@ import { UnidadesNuevasComponent } from './unidades';
 
 interface Paso { titulo: string; subtitulo: string; campos: string[] }
 const PASOS: Paso[] = [
-  { titulo: 'Tipo y ubicación', subtitulo: '¿Qué ofreces y dónde está?', campos: ['tipo_id', 'ciudad_id', 'direccion', 'latitud', 'longitud', 'aeropuertos'] },
-  { titulo: 'Lo básico', subtitulo: 'Horarios, estadías y datos de contacto.', campos: ['hora_checkin', 'hora_checkout', 'noches_min', 'noches_max', 'tarifa_limpieza', 'telefono_contacto', 'categoria_estrellas', 'registro_turismo', 'luaf'] },
+  { titulo: 'Tipo y ubicación', subtitulo: '¿Qué ofreces y dónde está?', campos: ['tipo_id', 'ciudad_id', 'direccion', 'latitud', 'longitud'] },
+  { titulo: 'Lo básico', subtitulo: 'Horarios, estadías y datos de contacto.', campos: ['hora_checkin', 'hora_checkout', 'noches_min', 'noches_max', 'tarifa_limpieza', 'telefono_contacto', 'categoria_estrellas'] },
   { titulo: 'Qué ofreces', subtitulo: 'Comodidades y fotos que verán los huéspedes.', campos: ['amenidades', 'imagenes'] },
   { titulo: 'Título y descripción', subtitulo: 'Cuenta en pocas palabras qué hace especial este alojamiento.', campos: ['nombre', 'descripcion'] },
   { titulo: 'Reservas y reglas', subtitulo: 'Política de cancelación y qué se espera de los huéspedes.', campos: ['politica_id', 'hora_silencio', 'reglas_extra'] },
@@ -146,13 +146,17 @@ const PASO_UNIDADES = 5;
       </div>
 
       <footer class="asistente-pie">
+        <a class="btn" routerLink="/admin" [queryParams]="{ tab: 'alojamientos' }">Cancelar</a>
         <button class="btn" type="button" (click)="atras()" [disabled]="paso() === 0">Atrás</button>
         @if (paso() < pasos.length - 1) {
-          <button class="btn btn-secundario" type="button" (click)="siguiente()">Siguiente</button>
+          <button class="btn btn-secundario" type="button" (click)="siguiente()" [disabled]="!pasoValido(paso())">Siguiente</button>
         } @else {
-          <button class="btn btn-primario" type="submit" [disabled]="guardando()">{{ guardando() ? 'Guardando…' : 'Crear borrador' }}</button>
+          <button class="btn btn-primario" type="submit" [disabled]="guardando() || !todoValido()">{{ guardando() ? 'Guardando…' : 'Crear borrador' }}</button>
         }
       </footer>
+      @if (paso() < pasos.length - 1 ? !pasoValido(paso()) : !todoValido()) {
+        <p class="ayuda">Completa los campos de este paso para continuar. <button type="button" class="btn-enlace" (click)="paso() < pasos.length - 1 ? siguiente() : guardar()">Ver qué falta</button></p>
+      }
     </form>
   `,
 })
@@ -231,7 +235,7 @@ export class EditorAlojamientoComponent implements ConCambiosSinGuardar {
     return this.unidades.getRawValue().map((u) =>
       this.modalidad() === 'COMPLETO'
         ? `Todo el alojamiento · hasta ${u.capacidad_huespedes} huéspedes · USD ${Number(u.precio_noche_base ?? 0).toFixed(2)} por noche`
-        : `${u.nombre || '(sin nombre)'} · ${u.cantidad} disponible${u.cantidad === 1 ? '' : 's'} · hasta ${u.capacidad_huespedes} huéspedes · USD ${Number(u.precio_noche_base ?? 0).toFixed(2)} por noche`,
+        : `${u.nombre || '(sin nombre)'} · ${u.cantidad} disponible${Number(u.cantidad) === 1 ? '' : 's'} · hasta ${u.capacidad_huespedes} huéspedes · USD ${Number(u.precio_noche_base ?? 0).toFixed(2)} por noche`,
     );
   });
 
@@ -239,6 +243,10 @@ export class EditorAlojamientoComponent implements ConCambiosSinGuardar {
   pasoValido(i: number): boolean {
     if (i === PASO_UNIDADES) return this.unidades.valid;
     return PASOS[i].campos.every((n) => this.form.get(n)?.valid ?? true);
+  }
+  todoValido(): boolean {
+    this.valores();
+    return PASOS.every((_, i) => this.pasoValido(i));
   }
   ir(i: number): void {
     if (i > this.alcanzado()) return;

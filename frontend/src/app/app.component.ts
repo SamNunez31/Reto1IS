@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/services/auth.service';
-import { ConfirmarComponent } from './shared/confirmar';
+import { ConfirmarComponent, ConfirmarService } from './shared/confirmar';
 
 @Component({
   selector: 'app-root',
@@ -19,8 +19,19 @@ import { ConfirmarComponent } from './shared/confirmar';
           } @else {
             <a routerLink="/mis-reservas" routerLinkActive="activo">Mis reservas</a>
           }
-          <a routerLink="/perfil" routerLinkActive="activo">{{ u.nombres }}</a>
-          <button class="btn-enlace" type="button" (click)="auth.logout()">Salir</button>
+          @if (u.rol === 'ADMIN') {
+            <!-- El ADMIN no tiene "Mi perfil": su nombre es solo informativo -->
+            <span class="nav-usuario">
+              <svg class="icono-usuario" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5Z"/></svg>
+              {{ u.nombres }}
+            </span>
+          } @else {
+            <a class="nav-usuario" routerLink="/perfil" routerLinkActive="activo" title="Mi perfil" [attr.aria-label]="'Mi perfil: ' + u.nombres">
+              <svg class="icono-usuario" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5Z"/></svg>
+              {{ u.nombres }}
+            </a>
+          }
+          <button class="btn-salir" type="button" (click)="salir()">Salir</button>
         } @else {
           <a routerLink="/login" routerLinkActive="activo">Ingresar</a>
           <a routerLink="/registro" class="btn btn-primario">Crear cuenta</a>
@@ -33,6 +44,7 @@ import { ConfirmarComponent } from './shared/confirmar';
     <footer class="pie-pagina">
       <p class="pie-marca">© 2026 Posada EC · Proyecto académico PUCE</p>
       <p class="pie-aviso">Los pagos y facturas son simulados con fines académicos.</p>
+      <p class="pie-aviso"><a class="pie-enlace" routerLink="/observabilidad">Observabilidad</a></p>
     </footer>
     <app-confirmar />
   `,
@@ -40,4 +52,17 @@ import { ConfirmarComponent } from './shared/confirmar';
 export class AppComponent {
   readonly auth = inject(AuthService);
   readonly menu = signal(false);
+  private readonly confirmar = inject(ConfirmarService);
+
+  /** Cierra la sesión solo si el usuario lo confirma en el diálogo común. */
+  async salir(): Promise<void> {
+    const si = await this.confirmar.pedir({
+      titulo: '¿Cerrar sesión?',
+      mensaje: '¿Seguro que quieres cerrar sesión?',
+      confirmar: 'Cerrar sesión',
+      cancelar: 'Cancelar',
+      tono: 'peligro',
+    });
+    if (si) this.auth.logout();
+  }
 }

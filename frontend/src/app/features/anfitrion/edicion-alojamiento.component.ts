@@ -8,7 +8,7 @@ import { CatalogoService } from '../../core/services/catalogo.service';
 import { avisoTemporal } from '../../shared/aviso';
 import { AlertaErrorComponent, CargandoComponent, EstadoComponent } from '../../shared/ui';
 import { traducirMotivoApi } from '../../shared/validadores';
-import { aeropuertosDe, crearFormAlojamiento, datosDe, enlazarForm, grupoAeropuerto, leerReglas, ubicarErroresApi } from './alojamiento-form';
+import { crearFormAlojamiento, datosDe, enlazarForm, leerReglas, ubicarErroresApi } from './alojamiento-form';
 import { ConCambiosSinGuardar } from './cambios.guard';
 import {
   CampoBloqueadoComponent, SecAmenidadesComponent, SecFotosComponent, SecHorariosComponent, SecReservasComponent, SecTextoComponent, SecTipoComponent,
@@ -21,9 +21,9 @@ type IdSeccion = 'basica' | 'ubicacion' | 'reglas' | 'habitaciones' | 'calendari
 /** Campos del formulario de cada sección (las de habitaciones y calendario guardan directo contra la API). */
 const CAMPOS: Record<'basica' | 'ubicacion' | 'reglas' | 'fotos', string[]> = {
   basica: ['tipo_id', 'nombre', 'descripcion', 'amenidades'],
-  ubicacion: ['ciudad_id', 'direccion', 'latitud', 'longitud', 'aeropuertos'],
+  ubicacion: ['ciudad_id', 'direccion', 'latitud', 'longitud'],
   reglas: ['hora_checkin', 'hora_checkout', 'noches_min', 'noches_max', 'tarifa_limpieza', 'telefono_contacto', 'categoria_estrellas',
-    'registro_turismo', 'luaf', 'modo_reserva', 'politica_id', 'no_fumar', 'no_mascotas', 'no_fiestas', 'silencio', 'hora_silencio', 'reglas_extra'],
+    'modo_reserva', 'politica_id', 'no_fumar', 'no_mascotas', 'no_fiestas', 'silencio', 'hora_silencio', 'reglas_extra'],
   fotos: ['imagenes'],
 };
 /** Lo que se envía al PATCH por sección (las casillas de reglas se envían como el texto reglas_casa). */
@@ -81,9 +81,11 @@ type SeccionForm = keyof typeof CAMPOS;
             <h3>Comodidades</h3>
             <app-sec-amenidades [form]="form" />
             <footer class="seccion-pie">
-              <button type="button" class="btn btn-secundario" (click)="guardar('basica')" [disabled]="guardando() === 'basica'">{{ guardando() === 'basica' ? 'Guardando…' : 'Guardar cambios' }}</button>
+              <button type="button" class="btn btn-secundario" (click)="guardar('basica')" [disabled]="guardando() === 'basica' || !pendiente('basica') || seccionInvalida('basica')">{{ guardando() === 'basica' ? 'Guardando…' : 'Guardar cambios' }}</button>
+              <button type="button" class="btn" (click)="descartar('basica')" [disabled]="guardando() === 'basica' || !pendiente('basica')">Descartar cambios</button>
               <span class="estado-seccion" [class.pendiente]="pendiente('basica')" [class.guardado]="estadoSeccion('basica') === 'Guardado'" role="status">{{ estadoSeccion('basica') }}</span>
             </footer>
+            @if (pendiente('basica') && seccionInvalida('basica')) { <p class="ayuda">Corrige los campos marcados para poder guardar. <button type="button" class="btn-enlace" (click)="guardar('basica')">Ver qué falta</button></p> }
             @if (errores()['basica']; as e) { <p class="aviso-guardado error" role="alert">✗ {{ e }}</p> }
           </section>
 
@@ -92,9 +94,11 @@ type SeccionForm = keyof typeof CAMPOS;
             <h2 id="t-ubicacion">Ubicación</h2>
             <app-sec-ubicacion [form]="form" />
             <footer class="seccion-pie">
-              <button type="button" class="btn btn-secundario" (click)="guardar('ubicacion')" [disabled]="guardando() === 'ubicacion'">{{ guardando() === 'ubicacion' ? 'Guardando…' : 'Guardar cambios' }}</button>
+              <button type="button" class="btn btn-secundario" (click)="guardar('ubicacion')" [disabled]="guardando() === 'ubicacion' || !pendiente('ubicacion') || seccionInvalida('ubicacion')">{{ guardando() === 'ubicacion' ? 'Guardando…' : 'Guardar cambios' }}</button>
+              <button type="button" class="btn" (click)="descartar('ubicacion')" [disabled]="guardando() === 'ubicacion' || !pendiente('ubicacion')">Descartar cambios</button>
               <span class="estado-seccion" [class.pendiente]="pendiente('ubicacion')" [class.guardado]="estadoSeccion('ubicacion') === 'Guardado'" role="status">{{ estadoSeccion('ubicacion') }}</span>
             </footer>
+            @if (pendiente('ubicacion') && seccionInvalida('ubicacion')) { <p class="ayuda">Corrige los campos marcados para poder guardar. <button type="button" class="btn-enlace" (click)="guardar('ubicacion')">Ver qué falta</button></p> }
             @if (errores()['ubicacion']; as e) { <p class="aviso-guardado error" role="alert">✗ {{ e }}</p> }
           </section>
 
@@ -104,9 +108,11 @@ type SeccionForm = keyof typeof CAMPOS;
             <app-sec-horarios [form]="form" />
             <app-sec-reservas [form]="form" />
             <footer class="seccion-pie">
-              <button type="button" class="btn btn-secundario" (click)="guardar('reglas')" [disabled]="guardando() === 'reglas'">{{ guardando() === 'reglas' ? 'Guardando…' : 'Guardar cambios' }}</button>
+              <button type="button" class="btn btn-secundario" (click)="guardar('reglas')" [disabled]="guardando() === 'reglas' || !pendiente('reglas') || seccionInvalida('reglas')">{{ guardando() === 'reglas' ? 'Guardando…' : 'Guardar cambios' }}</button>
+              <button type="button" class="btn" (click)="descartar('reglas')" [disabled]="guardando() === 'reglas' || !pendiente('reglas')">Descartar cambios</button>
               <span class="estado-seccion" [class.pendiente]="pendiente('reglas')" [class.guardado]="estadoSeccion('reglas') === 'Guardado'" role="status">{{ estadoSeccion('reglas') }}</span>
             </footer>
+            @if (pendiente('reglas') && seccionInvalida('reglas')) { <p class="ayuda">Corrige los campos marcados para poder guardar. <button type="button" class="btn-enlace" (click)="guardar('reglas')">Ver qué falta</button></p> }
             @if (errores()['reglas']; as e) { <p class="aviso-guardado error" role="alert">✗ {{ e }}</p> }
           </section>
 
@@ -119,7 +125,7 @@ type SeccionForm = keyof typeof CAMPOS;
 
           <!-- Calendario -->
           <section class="tarjeta seccion" id="sec-calendario" aria-labelledby="t-calendario">
-            <h2 id="t-calendario">Calendario</h2>
+            <h2 id="t-calendario">Precios y disponibilidad por fecha (opcional)</h2>
             <app-calendario-panel #calendario [unidades]="unidades()" />
           </section>
 
@@ -128,9 +134,11 @@ type SeccionForm = keyof typeof CAMPOS;
             <h2 id="t-fotos">Fotos</h2>
             <app-sec-fotos [form]="form" />
             <footer class="seccion-pie">
-              <button type="button" class="btn btn-secundario" (click)="guardar('fotos')" [disabled]="guardando() === 'fotos'">{{ guardando() === 'fotos' ? 'Guardando…' : 'Guardar cambios' }}</button>
+              <button type="button" class="btn btn-secundario" (click)="guardar('fotos')" [disabled]="guardando() === 'fotos' || !pendiente('fotos') || seccionInvalida('fotos')">{{ guardando() === 'fotos' ? 'Guardando…' : 'Guardar cambios' }}</button>
+              <button type="button" class="btn" (click)="descartar('fotos')" [disabled]="guardando() === 'fotos' || !pendiente('fotos')">Descartar cambios</button>
               <span class="estado-seccion" [class.pendiente]="pendiente('fotos')" [class.guardado]="estadoSeccion('fotos') === 'Guardado'" role="status">{{ estadoSeccion('fotos') }}</span>
             </footer>
+            @if (pendiente('fotos') && seccionInvalida('fotos')) { <p class="ayuda">Corrige los campos marcados para poder guardar. <button type="button" class="btn-enlace" (click)="guardar('fotos')">Ver qué falta</button></p> }
             @if (errores()['fotos']; as e) { <p class="aviso-guardado error" role="alert">✗ {{ e }}</p> }
           </section>
         </div>
@@ -152,7 +160,7 @@ export class EdicionAlojamientoComponent implements OnInit, ConCambiosSinGuardar
     { id: 'ubicacion', titulo: 'Ubicación', icono: '📍' },
     { id: 'reglas', titulo: 'Reglas y reservas', icono: '📋' },
     { id: 'habitaciones', titulo: 'Habitaciones y precios', icono: '🛏️' },
-    { id: 'calendario', titulo: 'Calendario', icono: '📅' },
+    { id: 'calendario', titulo: 'Precios por fecha (opcional)', icono: '📅' },
     { id: 'fotos', titulo: 'Fotos', icono: '📷' },
   ];
   readonly codigo = signal(0);
@@ -231,7 +239,24 @@ export class EdicionAlojamientoComponent implements OnInit, ConCambiosSinGuardar
   }
   estadoSeccion(s: SeccionForm): string {
     if (this.pendiente(s)) return 'Cambios sin guardar';
-    return this.guardadas()[s] && this.okGuardado.texto() ? 'Guardado' : 'Sin cambios';
+    return this.guardadas()[s] && this.okGuardado.texto() ? 'Guardado' : '';
+  }
+  seccionInvalida(s: SeccionForm): boolean {
+    this.valores();
+    return CAMPOS[s].some((c) => this.form.get(c)?.invalid);
+  }
+  /** Vuelve la sección a lo último guardado (sin llamar al API). */
+  descartar(s: SeccionForm): void {
+    const guardado = this.base()[s];
+    if (!guardado) return;
+    const valores = JSON.parse(guardado) as unknown[];
+    CAMPOS[s].forEach((c, i) => {
+      const control = this.form.get(c);
+      control?.setValue(valores[i]);
+      control?.markAsPristine();
+      control?.markAsUntouched();
+    });
+    this.errores.update((e) => ({ ...e, [s]: undefined }));
   }
   hayCambiosSinGuardar(): boolean {
     return (Object.keys(CAMPOS) as SeccionForm[]).some((s) => this.pendiente(s)) || !!this.calendario()?.hayCambios();
@@ -267,13 +292,10 @@ export class EdicionAlojamientoComponent implements OnInit, ConCambiosSinGuardar
           hora_checkin: (a.hora_checkin ?? '14:00').slice(0, 5), hora_checkout: (a.hora_checkout ?? '12:00').slice(0, 5),
           noches_min: a.noches_min ?? 1, noches_max: a.noches_max ?? 30, tarifa_limpieza: a.tarifa_limpieza ?? 0,
           modo_reserva: 'INSTANTANEA', telefono_contacto: a.telefono_contacto ?? '',
-          registro_turismo: a.registro_turismo ?? '', luaf: a.luaf ?? '', categoria_estrellas: a.categoria_estrellas ?? null,
+          categoria_estrellas: a.categoria_estrellas ?? null,
           amenidades: a.amenidades ?? [], imagenes: (a.imagenes ?? []).map((i) => i.url).join('\n'),
           ...leerReglas(a.reglas_casa ?? ''),
         });
-        const ae = aeropuertosDe(this.form);
-        ae.clear();
-        for (const x of a.aeropuertos ?? []) ae.push(grupoAeropuerto(this.fb, this.c()?.airports[0]?.id ?? 1, x));
         this.unidades.set(a.unidades);
         this.fijarBase();
         this.form.markAsPristine();

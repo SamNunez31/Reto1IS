@@ -49,11 +49,8 @@ export interface DatosAlojamiento {
   modo_reserva?: 'INSTANTANEA';
   reglas_casa?: string;
   categoria_estrellas?: number;
-  registro_turismo?: string;
-  luaf?: string;
   amenidades?: number[];
   imagenes?: { url: string; es_portada?: boolean }[];
-  aeropuertos?: { aeropuerto_id: number; distancia_km: number; tiempo_min: number; ofrece_transfer?: boolean }[];
 }
 
 export interface AlojamientoEditable extends DatosAlojamiento {
@@ -70,7 +67,7 @@ export interface DiaCalendario {
   cupo_libre: number;
 }
 
-export interface SolicitudHost {
+export interface ReservaHost {
   id: string;
   codigo: string;
   estado: string;
@@ -81,8 +78,11 @@ export interface SolicitudHost {
   fecha_salida: string;
   num_huespedes: number;
   total: number;
-  expira_en: string | null;
   created_at: string;
+  /** TARJETA | EFECTIVO */
+  metodo_pago: string | null;
+  /** PENDIENTE (efectivo aún no recibido) | APROBADO */
+  estado_pago: string | null;
 }
 
 export interface ResenaHost {
@@ -131,13 +131,15 @@ export class AnfitrionService {
   guardarCalendario(unidad: string, dias: { fecha: string; precio_noche: number | null; cantidad_a_la_venta: number | null }[]): Observable<{ dias: number }> {
     return datos(this.http.put<RespuestaApi<{ dias: number }>>(`${this.base}/units/${unidad}/calendar`, { dias }));
   }
-  reservas(estado: string, limit: number, offset: number): Observable<Listado<SolicitudHost>> {
+  reservas(estado: string, limit: number, offset: number, estadoPago = ''): Observable<Listado<ReservaHost>> {
     let params = new HttpParams().set('limit', limit).set('offset', offset);
     if (estado) params = params.set('estado', estado);
-    return datos(this.http.get<RespuestaApi<Listado<SolicitudHost>>>(`${this.base}/orders`, { params }));
+    if (estadoPago) params = params.set('estado_pago', estadoPago);
+    return datos(this.http.get<RespuestaApi<Listado<ReservaHost>>>(`${this.base}/orders`, { params }));
   }
-  responder(id: string, acepta: boolean): Observable<{ estado: string }> {
-    return datos(this.http.post<RespuestaApi<{ estado: string }>>(`${this.base}/orders/${id}/respond`, { acepta }));
+  /** Marca como recibido el pago en efectivo de la reserva (idempotente). */
+  confirmarPago(id: string): Observable<{ reserva: ReservaHost; ya_confirmado: boolean }> {
+    return datos(this.http.post<RespuestaApi<{ reserva: ReservaHost; ya_confirmado: boolean }>>(`${this.base}/orders/${id}/confirm-payment`, null));
   }
   ingresos(): Observable<{ mes: string; estancias: number; ingreso_sin_iva: number }[]> {
     return datos(this.http.get<RespuestaApi<{ mes: string; estancias: number; ingreso_sin_iva: number }[]>>(`${this.base}/income`));

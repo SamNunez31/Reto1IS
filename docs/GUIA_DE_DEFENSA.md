@@ -3,7 +3,7 @@
 Por módulo: **qué hace**, **por qué así**, y **pregunta probable** del profesor con una respuesta corta.
 
 ## Base de datos (`database/`)
-- **Qué:** 27 tablas en el schema `booking`; reglas en funciones `fn_*`, vistas `v_*` y triggers.
+- **Qué:** 25 tablas en el schema `booking`; reglas en funciones `fn_*`, vistas `v_*` y triggers.
 - **Por qué:** la regla de negocio crítica (cupo, precio, estados) queda en un solo lugar y se cumple aunque alguien entre por otro camino.
 - **Pregunta:** *¿Cómo evitan la sobreventa?* → `tg_detalle_validar` bloquea la unidad con `FOR UPDATE` y vuelve a calcular `fn_cupo_unidad` antes de insertar la línea; dos reservas simultáneas se serializan.
 
@@ -36,7 +36,7 @@ Por módulo: **qué hace**, **por qué así**, y **pregunta probable** del profe
 - **Pregunta:** *¿Cómo muestran la penalidad antes de cancelar sin duplicar la regla?* → ejecutamos la misma función en una transacción que siempre hace ROLLBACK (`cancel-preview`).
 
 ## Jobs y outbox (`modules/jobs/`)
-- **Qué:** expirar solicitudes (5 min), completar estancias (1 h), publicar outbox (5 s), purgar idempotencia (diario), cada uno con `pg_try_advisory_xact_lock`.
+- **Qué:** completar estancias (1 h), publicar outbox (5 s), purgar idempotencia (diario), cada uno con `pg_try_advisory_xact_lock`.
 - **Pregunta:** *¿Y si hay dos instancias del backend?* → solo la que obtiene el bloqueo consultivo ejecuta; la otra se salta esa vuelta. El outbox usa `FOR UPDATE SKIP LOCKED`.
 
 ## Frontend (`frontend/`)

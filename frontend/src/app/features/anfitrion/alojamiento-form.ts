@@ -11,12 +11,8 @@ export const L = {
   noches: { min: 1, max: 365 },
   limpieza: { min: 0, max: 10000 },
   reglas: 3000,
-  registro: 30,
   imagenes: 30,
   url: 500,
-  aeropuertos: 10,
-  km: 9999,
-  minutos: 3000,
   unidad: { nombre: { min: 2, max: 100 }, capacidad: 30, habitaciones: 50, camas: 100, banos: 50, cantidad: 500, precio: { min: 1, max: 100000 } },
 } as const;
 
@@ -48,9 +44,9 @@ const vImagenes: ValidatorFn = (c) => {
 };
 
 // ---------- Iconos y textos ----------
+/** Los 5 tipos del catálogo (database/01_esquema.sql). */
 export const ICONO_TIPO: Record<string, string> = {
-  Hotel: '🏨', Hostal: '🛏️', 'Hostería': '🏡', 'Hacienda turística': '🐎', Lodge: '🌿', Resort: '🏝️', Refugio: '🏔️',
-  'Campamento turístico': '⛺', 'Casa de huéspedes': '🏘️', Casa: '🏠', Departamento: '🏢', 'Habitación privada': '🚪', 'Cabaña': '🛖',
+  Hotel: '🏨', Hostal: '🛏️', 'Cabaña': '🛖', Casa: '🏠', Departamento: '🏢',
 };
 export const ICONO_AMENIDAD: Record<string, string> = {
   'Wi-Fi': '📶', 'Agua caliente': '🚿', 'Cocina equipada': '🍳', 'Aire acondicionado': '❄️', 'Calefacción': '🔥', TV: '📺',
@@ -63,7 +59,7 @@ export const NOMBRE_POLITICA: Record<string, { titulo: string; icono: string }> 
   NO_REEMBOLSABLE: { titulo: 'No reembolsable', icono: '🔒' },
 };
 /** Tipos que normalmente se alquilan completos (para sugerir "Todo el alojamiento"). */
-export const TIPOS_COMPLETOS = ['Casa', 'Departamento', 'Cabaña', 'Refugio', 'Hacienda turística'];
+export const TIPOS_COMPLETOS = ['Casa', 'Departamento', 'Cabaña'];
 
 /** Reglas de la casa con casilla; el texto final se arma para el campo existente `reglas_casa`. */
 export const REGLAS = {
@@ -85,19 +81,10 @@ export function grupoUnidad(fb: FormBuilder, v?: Partial<{ nombre: string; capac
     num_camas: [v?.num_camas ?? 1, vRango(1, U.camas, { entero: true, obligatorio: true })],
     num_banos: [v?.num_banos ?? 1, vRango(0, U.banos, { entero: true, obligatorio: true })],
     cantidad: [v?.cantidad ?? 1, vRango(1, U.cantidad, { entero: true, obligatorio: true })],
-    precio_noche_base: [v?.precio_noche_base ?? null as number | null, vRango(U.precio.min, U.precio.max, { obligatorio: true, unidad: 'USD' })],
+    precio_noche_base: [v?.precio_noche_base ?? null as number | null, vRango(U.precio.min, U.precio.max, { obligatorio: true, unidad: 'USD', decimales: 2 })],
   });
 }
 export type FormUnidad = ReturnType<typeof grupoUnidad>;
-
-export function grupoAeropuerto(fb: FormBuilder, idPorDefecto: number, v?: { aeropuerto_id: number; distancia_km: number; tiempo_min: number; ofrece_transfer?: boolean }) {
-  return fb.group({
-    aeropuerto_id: [v?.aeropuerto_id ?? idPorDefecto, Validators.required],
-    distancia_km: [v?.distancia_km ?? 10, vRango(0, L.km, { obligatorio: true, unidad: 'km' })],
-    tiempo_min: [v?.tiempo_min ?? 20, vRango(0, L.minutos, { entero: true, obligatorio: true, unidad: 'minutos' })],
-    ofrece_transfer: [v?.ofrece_transfer ?? false],
-  });
-}
 
 export function crearFormAlojamiento(fb: FormBuilder) {
   return fb.group({
@@ -106,16 +93,13 @@ export function crearFormAlojamiento(fb: FormBuilder) {
     direccion: ['', vLongitud(L.direccion.min, L.direccion.max, 'la dirección')],
     latitud: [null as number | null, [vElegir('Ubica el alojamiento en el mapa'), vRango(-5, 2)]],
     longitud: [null as number | null, [vElegir('Ubica el alojamiento en el mapa'), vRango(-93, -75)]],
-    aeropuertos: fb.array<FormGroup>([]),
     hora_checkin: ['14:00', vHora],
     hora_checkout: ['12:00', vHora],
     noches_min: [1 as number | null, vRango(L.noches.min, L.noches.max, { entero: true, obligatorio: true, unidad: 'noches' })],
     noches_max: [30 as number | null, [vRango(L.noches.min, L.noches.max, { entero: true, obligatorio: true, unidad: 'noches' }), vNochesMax]],
-    tarifa_limpieza: [0 as number | null, vRango(L.limpieza.min, L.limpieza.max, { unidad: 'USD' })],
+    tarifa_limpieza: [0 as number | null, vRango(L.limpieza.min, L.limpieza.max, { unidad: 'USD', decimales: 2 })],
     telefono_contacto: ['', vTelefono],
     categoria_estrellas: [null as number | null],
-    registro_turismo: ['', vMaximo(L.registro, `Máximo ${L.registro} caracteres`)],
-    luaf: ['', vMaximo(L.registro, `Máximo ${L.registro} caracteres`)],
     amenidades: [[] as number[]],
     imagenes: ['', vImagenes],
     nombre: ['', [vLongitud(L.nombre.min, L.nombre.max, 'un título'), vSinRepeticiones]],
@@ -137,10 +121,6 @@ export type CampoAlojamiento = keyof FormAlojamiento['controls'];
 /** Engancha validaciones cruzadas (noches máx. depende de mín.). */
 export function enlazarForm(form: FormAlojamiento): void {
   form.controls.noches_min.valueChanges.subscribe(() => form.controls.noches_max.updateValueAndValidity({ emitEvent: false }));
-}
-
-export function aeropuertosDe(form: FormAlojamiento): FormArray<FormGroup> {
-  return form.controls.aeropuertos;
 }
 
 /** Texto final de reglas de la casa (casillas + texto libre). */
@@ -171,7 +151,7 @@ export function leerReglas(texto: string) {
 }
 
 /**
- * Cuerpo para POST/PATCH con los campos pedidos. Las listas (amenidades, imágenes, aeropuertos) reemplazan
+ * Cuerpo para POST/PATCH con los campos pedidos. Las listas (amenidades, imágenes) reemplazan
  * la lista completa en el backend, por eso solo se envían si su sección se está guardando.
  */
 export function datosDe(form: FormAlojamiento, campos?: readonly string[]): Partial<DatosAlojamiento> {
@@ -194,11 +174,6 @@ export function datosDe(form: FormAlojamiento, campos?: readonly string[]): Part
   if (quiere('modo_reserva')) d.modo_reserva = 'INSTANTANEA';
   if (quiere('amenidades')) d.amenidades = [...(v.amenidades ?? [])];
   if (quiere('imagenes')) d.imagenes = urlsDe(v.imagenes ?? '').map((url, i) => ({ url, es_portada: i === 0 }));
-  if (quiere('aeropuertos')) {
-    d.aeropuertos = v.aeropuertos.map((a: Record<string, unknown>) => ({
-      aeropuerto_id: Number(a['aeropuerto_id']), distancia_km: Number(a['distancia_km']), tiempo_min: Number(a['tiempo_min']), ofrece_transfer: !!a['ofrece_transfer'],
-    }));
-  }
   // Opcionales: al crear se omiten si están vacíos; al editar (campos dados) vacío = null para borrarlos
   // (el DTO usa @IsOptional, que acepta null; '' no pasaría sus validaciones)
   const libre = d as Record<string, unknown>;
@@ -208,8 +183,6 @@ export function datosDe(form: FormAlojamiento, campos?: readonly string[]): Part
     else if (campos) libre[c] = null;
   };
   opcional('telefono_contacto', normalizarTelefono((v.telefono_contacto ?? '').trim()));
-  opcional('registro_turismo', (v.registro_turismo ?? '').trim());
-  opcional('luaf', (v.luaf ?? '').trim());
   opcional('categoria_estrellas', v.categoria_estrellas || null);
   opcional('reglas_casa', reglasTexto(form.value).slice(0, L.reglas));
   return d;

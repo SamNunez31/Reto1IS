@@ -15,7 +15,6 @@ export enum OrdenBusqueda {
   precio_asc = 'precio_asc',
   precio_desc = 'precio_desc',
   calificacion = 'calificacion',
-  distancia = 'distancia',
 }
 
 /** SearchAccommodationRequest (+ filtros opcionales de extensión, ver docs/SUPUESTOS.md). */
@@ -68,18 +67,6 @@ export class SearchAccommodationRequestDto extends ConMonedaDto {
   @IsString()
   @Length(3, 40)
   province?: string;
-
-  /** Extensión: código IATA del aeropuerto cercano */
-  @IsOptional()
-  @Matches(/^[A-Z]{3}$/)
-  airport?: string;
-
-  /** Extensión: distancia máxima al aeropuerto en km */
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(1000)
-  max_airport_km?: number;
 
   /** Extensión: id de tipo de alojamiento */
   @IsOptional()
@@ -254,7 +241,7 @@ export class DetailsChangesRequestDto {
 
 /** ConstantsRequest */
 export class ConstantsRequestDto extends IdiomasDto {
-  /** accommodation_types, facilities, cancellation_policies, provinces, cities, airports, booking_statuses */
+  /** accommodation_types, facilities, cancellation_policies, provinces, cities, booking_statuses */
   @IsOptional()
   @IsArray()
   @IsString({ each: true })

@@ -1,9 +1,13 @@
-import { Component, ElementRef, inject, OnInit, signal } from '@angular/core';
+import { Location } from '@angular/common';
+import { Component, computed, ElementRef, inject, OnInit, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ErrorVista, leerError } from '../../core/services/api-base';
 import { CambiosPerfil, PerfilService } from '../../core/services/perfil.service';
 import { CampoMensajeComponent, conError } from '../../shared/campo';
 import { avisoTemporal } from '../../shared/aviso';
+import { FiltroDirective } from '../../shared/entrada';
 import { TelefonoDirective } from '../../shared/telefono.directive';
 import { AlertaErrorComponent, CargandoComponent } from '../../shared/ui';
 import {
@@ -18,7 +22,7 @@ type Campo = 'nombres' | 'apellidos' | 'telefono';
  */
 @Component({
   selector: 'app-perfil',
-  imports: [ReactiveFormsModule, AlertaErrorComponent, CargandoComponent, CampoMensajeComponent, TelefonoDirective],
+  imports: [ReactiveFormsModule, AlertaErrorComponent, CargandoComponent, CampoMensajeComponent, TelefonoDirective, FiltroDirective],
   template: `
     <section class="tarjeta auth">
       <h1>Mi perfil</h1>
@@ -29,13 +33,13 @@ type Campo = 'nombres' | 'apellidos' | 'telefono';
         <div class="fila">
           <div class="grupo">
             <label for="per-nombres">Nombres</label>
-            <input id="per-nombres" formControlName="nombres" autocomplete="given-name" [maxlength]="L.nombre.max"
+            <input id="per-nombres" appFiltro="nombre" formControlName="nombres" autocomplete="given-name" [maxlength]="L.nombre.max"
                    [attr.aria-invalid]="mal('nombres')" aria-describedby="msg-per-nombres" (blur)="limpiarNombre('nombres')" />
             <app-campo-mensaje [control]="form.controls.nombres" id="msg-per-nombres" />
           </div>
           <div class="grupo">
             <label for="per-apellidos">Apellidos</label>
-            <input id="per-apellidos" formControlName="apellidos" autocomplete="family-name" [maxlength]="L.nombre.max"
+            <input id="per-apellidos" appFiltro="nombre" formControlName="apellidos" autocomplete="family-name" [maxlength]="L.nombre.max"
                    [attr.aria-invalid]="mal('apellidos')" aria-describedby="msg-per-apellidos" (blur)="limpiarNombre('apellidos')" />
             <app-campo-mensaje [control]="form.controls.apellidos" id="msg-per-apellidos" />
           </div>
@@ -48,7 +52,12 @@ type Campo = 'nombres' | 'apellidos' | 'telefono';
           <app-campo-mensaje [control]="form.controls.telefono" id="msg-per-telefono" />
         </div>
         <p class="ayuda">Los datos para la factura los ingresas al momento de pagar cada reserva.</p>
-        <button class="btn btn-primario" type="submit" [disabled]="enviando()">{{ enviando() ? 'Guardando…' : 'Guardar' }}</button>
+        <div class="acciones">
+          <button class="btn btn-primario" type="submit" [disabled]="enviando() || cargando() || !hayCambios() || form.invalid"
+                  [attr.aria-describedby]="!hayCambios() ? 'per-sin-cambios' : null">{{ enviando() ? 'Guardando…' : 'Guardar' }}</button>
+          <button class="btn" type="button" (click)="cancelar()" [disabled]="enviando()">Cancelar</button>
+        </div>
+        @if (!hayCambios() && !cargando()) { <small id="per-sin-cambios" class="ayuda">No hay cambios por guardar.</small> }
         @if (ok.texto()) { <p class="aviso-guardado ok" role="status">✓ {{ ok.texto() }}</p> }
       </form>
     </section>
@@ -69,12 +78,26 @@ export class PerfilComponent implements OnInit {
     apellidos: ['', vNombre('apellidos')],
     telefono: ['', vTelefono],
   });
+  private readonly location = inject(Location);
+  private readonly router = inject(Router);
+  /** Últimos valores guardados (o cargados): Cancelar vuelve a ellos y sirven para saber si hay cambios. */
+  private readonly guardado = signal({ nombres: '', apellidos: '', telefono: '' });
+  private readonly valores = toSignal(this.form.valueChanges, { initialValue: this.form.getRawValue() });
+  readonly hayCambios = computed(() => {
+    this.valores();
+    const v = this.form.getRawValue();
+    const g = this.guardado();
+    return normalizarNombre(v.nombres) !== g.nombres || normalizarNombre(v.apellidos) !== g.apellidos
+      || normalizarTelefono(v.telefono.trim()) !== normalizarTelefono(g.telefono);
+  });
 
   ngOnInit(): void {
     this.perfil.obtener().subscribe({
       next: (p) => {
         this.email.set(p.email);
-        this.form.patchValue({ nombres: p.nombres, apellidos: p.apellidos, telefono: p.telefono ?? '' });
+        const datos = { nombres: p.nombres, apellidos: p.apellidos, telefono: p.telefono ?? '' };
+        this.guardado.set(datos);
+        this.form.reset(datos);
         this.cargando.set(false);
       },
       error: (e) => {
@@ -94,6 +117,14 @@ export class PerfilComponent implements OnInit {
     if (n !== c.value) c.setValue(n);
   }
 
+  /** Descarta lo escrito (vuelve a lo guardado) y regresa a la página anterior, o al inicio si se entró directo. */
+  cancelar(): void {
+    this.form.reset(this.guardado());
+    this.error.set(null);
+    if (this.router.lastSuccessfulNavigation?.previousNavigation) this.location.back();
+    else this.router.navigateByUrl('/');
+  }
+
   guardar(): void {
     this.error.set(null);
     this.ok.limpiar();
@@ -105,6 +136,8 @@ export class PerfilComponent implements OnInit {
     this.enviando.set(true);
     this.perfil.actualizar(cambios).subscribe({
       next: () => {
+        this.guardado.set({ nombres: cambios.nombres ?? '', apellidos: cambios.apellidos ?? '', telefono: cambios.telefono ?? '' });
+        this.form.reset(this.guardado());
         this.ok.mostrar('Datos actualizados');
         this.enviando.set(false);
       },

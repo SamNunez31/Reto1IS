@@ -5,7 +5,7 @@ import { hoyEcuador } from '../../../common/http/respuestas';
 import { invalido, noEncontrado, ProblemException, prohibido } from '../../../common/problem/problem';
 import { DbService } from '../../../database/db.service';
 import { totalHuespedes } from '../dto/comunes.dto';
-import { DatosClienteDto, OrderCreateRequestDto, OrderModifyRequestDto, OrderPreviewRequestDto, TipoDocumentoFactura } from '../dto/ordenes.dto';
+import { DatosClienteDto, MetodoPago, OrderCreateRequestDto, OrderModifyRequestDto, OrderPreviewRequestDto, TipoDocumentoFactura } from '../dto/ordenes.dto';
 import { CancelacionResultado, OrderDetail, OrderPreviewResponse } from '../dto/respuestas.dto';
 import { CotizacionService } from './cotizacion.service';
 
@@ -26,6 +26,16 @@ export interface FilaOrden {
   creation_date: Date;
   units: { name: string; quantity: number }[] | null;
 }
+
+/**
+ * Método y estado del pago de una reserva (alias `r` = id de la reserva):
+ * metodo_pago = TARJETA | EFECTIVO (del primer cobro); estado_pago = PENDIENTE si queda un cobro sin recibir, APROBADO si se cobró.
+ */
+export const sqlPago = (r: string) => `
+  (SELECT p.metodo FROM pago p WHERE p.reserva_id = ${r} AND p.tipo = 'COBRO' ORDER BY p.fecha LIMIT 1) AS metodo_pago,
+  CASE WHEN EXISTS (SELECT 1 FROM pago p WHERE p.reserva_id = ${r} AND p.tipo = 'COBRO' AND p.estado = 'PENDIENTE') THEN 'PENDIENTE'
+       WHEN EXISTS (SELECT 1 FROM pago p WHERE p.reserva_id = ${r} AND p.tipo = 'COBRO' AND p.estado = 'APROBADO') THEN 'APROBADO'
+  END AS estado_pago`;
 
 export const SQL_ORDEN = `
   SELECT o.order_id, o.locator, o.status, o.estado_interno::text AS estado_interno, o.accommodation_id,
@@ -68,23 +78,35 @@ export class OrdenesService {
     return { request_id: requestId, data: { order_preview_id: fila.id, total_price: fila.total, currency: fila.moneda } };
   }
 
-  /** POST /orders/create -> fn_crear_orden (pago simulado). */
+  /** POST /orders/create -> fn_crear_orden (pago simulado con tarjeta, o efectivo pendiente). */
   async crear(dto: OrderCreateRequestDto, user: UsuarioToken): Promise<OrderDetail> {
-    if (!REFERENCIA_PAGO.test(dto.payment_reference)) {
-      throw new ProblemException(400, 'PAYMENT_REFERENCE_INVALID', 'payment_reference debe cumplir ^PAY-[A-Z0-9]{6,}$', [
-        { name: 'payment_reference', reason: 'formato inválido' },
-      ]);
-    }
-    if (dto.payment_reference.startsWith('PAY-DECLINED')) {
-      throw new ProblemException(402, 'PAYMENT_NOT_AUTHORIZED', 'El pago simulado fue rechazado');
+    const efectivo = dto.payment_method === MetodoPago.CASH;
+    if (!efectivo) {
+      if (!REFERENCIA_PAGO.test(dto.payment_reference ?? '')) {
+        throw new ProblemException(400, 'PAYMENT_REFERENCE_INVALID', 'payment_reference debe cumplir ^PAY-[A-Z0-9]{6,}$', [
+          { name: 'payment_reference', reason: 'formato inválido' },
+        ]);
+      }
+      if (dto.payment_reference.startsWith('PAY-DECLINED')) {
+        throw new ProblemException(402, 'PAYMENT_NOT_AUTHORIZED', 'El pago simulado fue rechazado');
+      }
     }
     // Datos de facturación ingresados en el pago (extensión opcional). Se validan ANTES de crear la orden.
     const comprador = dto.customer_details?.document_type ? this.comprador(dto.customer_details, user) : null;
     const id = await this.db.transaccion(async (q) => {
       const [fila] = await q<{ id: string }>(`SELECT fn_crear_orden($1, $2) AS id`, [dto.order_preview_id, user.sub]);
+      if (efectivo) {
+        // fn_crear_orden registra el cobro como APROBADO (tarjeta). En efectivo queda PENDIENTE hasta que el admin
+        // confirma que lo recibió. Solo se tocan los cobros creados en ESTA transacción (fecha = now()): un reintento
+        // con el mismo preview devuelve la orden existente sin cambiar su pago.
+        await q(
+          `UPDATE pago SET estado = 'PENDIENTE', metodo = 'EFECTIVO'
+            WHERE reserva_id = $1 AND tipo = 'COBRO' AND fecha = now()`,
+          [fila.id],
+        );
+      }
       if (comprador) {
         // La factura (simulada) se emitió dentro de fn_crear_orden con los datos del perfil: se reemplazan por los del pago.
-        // En una reserva por solicitud aún no hay factura y esto no afecta filas (alcance acordado: opción B).
         await q(
           `UPDATE factura SET comprador_nombre = $2, comprador_tipo_documento = $3::tipo_documento,
                   comprador_identificacion = $4, comprador_email = $5
@@ -128,9 +150,19 @@ export class OrdenesService {
       throw invalido('Indica nuevas fechas o huéspedes', [{ name: 'checkin', reason: 'nada que modificar' }]);
     }
     await this.obtener(orderId, user.sub);
-    await this.db.query(`SELECT * FROM fn_modificar_reserva($1, $2, $3::date, $4::date, $5::smallint)`, [
-      orderId, user.sub, dto.checkin ?? null, dto.checkout ?? null, dto.guests ? totalHuespedes(dto.guests) : null,
-    ]);
+    await this.db.transaccion(async (q) => {
+      await q(`SELECT * FROM fn_modificar_reserva($1, $2, $3::date, $4::date, $5::smallint)`, [
+        orderId, user.sub, dto.checkin ?? null, dto.checkout ?? null, dto.guests ? totalHuespedes(dto.guests) : null,
+      ]);
+      // Si el pago es en efectivo y aún no se recibió, la diferencia (cobro o devolución) también queda pendiente:
+      // al confirmar el pago se cobra el total nuevo y no se "devuelve" dinero que nunca se cobró.
+      await q(
+        `UPDATE pago SET estado = 'PENDIENTE', metodo = 'EFECTIVO'
+          WHERE reserva_id = $1 AND fecha = now() AND estado = 'APROBADO'
+            AND EXISTS (SELECT 1 FROM pago x WHERE x.reserva_id = $1 AND x.metodo = 'EFECTIVO' AND x.estado = 'PENDIENTE')`,
+        [orderId],
+      );
+    });
     return this.obtener(orderId, user.sub);
   }
 
