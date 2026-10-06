@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { UsuarioToken } from '../../common/auth/decorators';
 import { Listado } from '../../common/http/respuestas';
-import { conflicto, invalido, noEncontrado, prohibido } from '../../common/problem/problem';
+import { conflicto, invalido, noEncontrado } from '../../common/problem/problem';
 import { problemaResena } from '../../common/validation/texto-libre';
 import { DbService } from '../../database/db.service';
 import { OrderDetail } from '../alojamientos/dto/respuestas.dto';

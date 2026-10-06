@@ -71,6 +71,8 @@ export function sanitizarTexto(valor: unknown): unknown {
   if (typeof valor !== 'string') return valor;
   return valor
     .replace(/<[^>]*>/g, '')
+    // Quita caracteres de control a propósito (no-control-regex lo marca justamente por eso)
+    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
     .trim();
 }
