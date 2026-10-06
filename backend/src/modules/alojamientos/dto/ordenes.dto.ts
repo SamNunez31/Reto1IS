@@ -1,9 +1,9 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize, ArrayUnique, IsArray, IsEmail, IsEnum, IsInt, IsOptional, IsString, IsUrl, IsUUID, Length,
-  Matches, MaxLength, Min, registerDecorator, ValidateIf, ValidateNested, ValidationOptions,
+  Matches, MaxLength, Min, ValidateIf, ValidateNested,
 } from 'class-validator';
-import { cedulaValida, rucValido, Sanitizar } from '../../../common/validation/validadores-ec';
+import { NumeroDocumentoValido, Sanitizar } from '../../../common/validation/validadores-ec';
 import { FECHA, HuespedesDto, MSG_FECHA } from './comunes.dto';
 
 /** OrderPreviewRequest */
@@ -30,27 +30,8 @@ export enum TipoDocumentoFactura {
   CONSUMIDOR_FINAL = 'CONSUMIDOR_FINAL',
 }
 
-/** document_number válido según document_type (mismos algoritmos que el perfil: cédula módulo 10, RUC, pasaporte). */
-function DocumentoFactura(opciones?: ValidationOptions) {
-  return function (objeto: object, propiedad: string) {
-    registerDecorator({
-      name: 'documentoFactura',
-      target: objeto.constructor,
-      propertyName: propiedad,
-      options: { message: 'número de documento inválido para el tipo indicado', ...opciones },
-      validator: {
-        validate(valor: unknown, args) {
-          const tipo = (args.object as { document_type?: string }).document_type;
-          if (typeof valor !== 'string') return false;
-          if (tipo === TipoDocumentoFactura.CEDULA) return cedulaValida(valor);
-          if (tipo === TipoDocumentoFactura.RUC) return rucValido(valor);
-          if (tipo === TipoDocumentoFactura.PASAPORTE) return /^[A-Z0-9]{5,13}$/i.test(valor);
-          return false;
-        },
-      },
-    });
-  };
-}
+/** document_number válido según document_type: mismos algoritmos y mensajes que el perfil (validadores-ec.ts). */
+const DocumentoFactura = () => NumeroDocumentoValido('document_type', { obligatorioSinTipo: true });
 
 const conDocumento = (o: DatosClienteDto) => !!o.document_type && o.document_type !== TipoDocumentoFactura.CONSUMIDOR_FINAL;
 
