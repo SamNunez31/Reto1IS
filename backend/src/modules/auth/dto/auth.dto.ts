@@ -1,8 +1,10 @@
 import { Transform } from 'class-transformer';
 import { IsEmail, IsEnum, IsHexadecimal, IsOptional, IsString, Length, Matches, MaxLength } from 'class-validator';
+import { normalizarEmail } from '../../../common/validation/email';
 import { DocumentoEcuador, MENSAJE_TELEFONO_EC, NormalizarTelefono, Sanitizar, TELEFONO_EC } from '../../../common/validation/validadores-ec';
 
-const aMinusculas = () => Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value));
+/** Correo: trim + minúsculas antes de validar (registro, login y recuperación usan la misma normalización). */
+const aMinusculas = () => Transform(({ value }) => normalizarEmail(value));
 
 /** Política de clave: 8+ caracteres con mayúscula, minúscula y número. */
 export const POLITICA_CLAVE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,72}$/;

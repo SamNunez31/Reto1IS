@@ -4,7 +4,8 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
 import { Rol, SCOPES_POR_ROL, UsuarioToken } from '../../common/auth/decorators';
-import { conflicto, invalido, ProblemException } from '../../common/problem/problem';
+import { invalido, ProblemException } from '../../common/problem/problem';
+import { esEmailDuplicado, MENSAJE_EMAIL_DUPLICADO, normalizarEmail } from '../../common/validation/email';
 import { DbService } from '../../database/db.service';
 import { ForgotPasswordDto, LoginDto, RegisterDto, ResetPasswordDto } from './dto/auth.dto';
 
@@ -49,22 +50,33 @@ export class AuthService {
   ) {}
 
   async registrar(dto: RegisterDto): Promise<Sesion> {
-    const existe = await this.db.uno(`SELECT 1 FROM usuario WHERE email = $1`, [dto.email]);
-    if (existe) throw conflicto('El correo ya está registrado');
+    // El DTO ya normaliza; se repite aquí por si el servicio se usa sin el ValidationPipe
+    const email = String(normalizarEmail(dto.email));
+    const duplicado = () => new ProblemException(409, 'VALIDATION_FAILED', MENSAJE_EMAIL_DUPLICADO, [{ name: 'email', reason: MENSAJE_EMAIL_DUPLICADO }]);
+    // La BD guarda los correos en minúsculas (ck_usuario_email), así que la comparación ya es sin importar mayúsculas
+    const existe = await this.db.uno(`SELECT 1 FROM usuario WHERE email = $1`, [email]);
+    if (existe) throw duplicado();
     const hash = await bcrypt.hash(dto.password, COSTO_BCRYPT);
-    const fila = await this.db.uno<FilaUsuario>(
-      `INSERT INTO usuario (email, password_hash, nombres, apellidos, telefono, tipo_documento, numero_documento)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, email, password_hash, nombres, apellidos, rol, activo`,
-      [dto.email, hash, dto.nombres, dto.apellidos, dto.telefono ?? null, dto.tipo_documento ?? null, dto.numero_documento ?? null],
-    );
+    let fila: FilaUsuario | null;
+    try {
+      fila = await this.db.uno<FilaUsuario>(
+        `INSERT INTO usuario (email, password_hash, nombres, apellidos, telefono, tipo_documento, numero_documento)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, email, password_hash, nombres, apellidos, rol, activo`,
+        [email, hash, dto.nombres, dto.apellidos, dto.telefono ?? null, dto.tipo_documento ?? null, dto.numero_documento ?? null],
+      );
+    } catch (e) {
+      // Dos registros simultáneos con el mismo correo: el segundo choca con uq_usuario_email
+      if (esEmailDuplicado(e)) throw duplicado();
+      throw e;
+    }
     return this.crearSesion(fila as FilaUsuario);
   }
 
   async login(dto: LoginDto): Promise<Sesion> {
     const fila = await this.db.uno<FilaUsuario>(
       `SELECT id, email, password_hash, nombres, apellidos, rol, activo FROM usuario WHERE email = $1`,
-      [dto.email],
+      [normalizarEmail(dto.email)],
     );
     const claveOk = await bcrypt.compare(dto.password, fila?.password_hash ?? HASH_SENUELO);
     // Mensaje genérico: no revela si el correo existe ni si la cuenta está desactivada
