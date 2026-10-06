@@ -27,7 +27,11 @@
               }
             ],
             "allowedCommonJsDependencies": [
-              "leaflet"
+              "leaflet",
+              "core-js",
+              "html2canvas",
+              "raf",
+              "rgbcolor"
             ],
             "styles": [
               "node_modules/bootstrap/dist/css/bootstrap-grid.min.css",

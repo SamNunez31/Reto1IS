@@ -251,6 +251,8 @@ export interface Factura {
   emisor_nombre: string;
   emisor_identificacion: string | null;
   comprador_nombre: string;
+  /** CEDULA | RUC | PASAPORTE | CONSUMIDOR_FINAL */
+  comprador_tipo_documento?: string | null;
   comprador_identificacion: string;
   comprador_email: string;
   subtotal_sin_impuestos: number;
