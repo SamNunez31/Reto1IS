@@ -2,7 +2,7 @@ import { CurrencyPipe, DatePipe, JsonPipe } from '@angular/common';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { Observable } from 'rxjs';
+import { firstValueFrom, Observable } from 'rxjs';
 import { Listado } from '../../core/models/api.models';
 import { AdminService, Catalogos, Fila } from '../../core/services/admin.service';
 import { DashboardAdminComponent } from './dashboard.component';
@@ -12,6 +12,7 @@ import { ErrorVista, leerError } from '../../core/services/api-base';
 import { avisoTemporal } from '../../shared/aviso';
 import { CalificacionComponent } from '../../shared/calificacion';
 import { PagoComponent } from '../../shared/pago';
+import { fechaMasDias } from '../../shared/fechas';
 import { fechaLarga, rangoCorto } from '../../shared/textos';
 import { FiltroDirective } from '../../shared/entrada';
 import { motivoNombreLugar, motivoRango } from '../../shared/validadores';
@@ -73,6 +74,8 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
                       <a class="btn btn-chico" [routerLink]="['/alojamientos', a['codigo']]">Ver anuncio</a>
                       <button class="btn btn-chico" type="button" (click)="publicar(a, false)">Despublicar</button>
                       <button class="btn btn-chico" type="button" (click)="estadoAloj(a, 'SUSPENDIDO')">Suspender</button>
+                      <button class="btn btn-chico btn-peligro-borde" type="button" (click)="eliminar(a)" [disabled]="eliminando() === a['codigo']">
+                        {{ eliminando() === a['codigo'] ? 'Revisando reservas…' : 'Eliminar' }}</button>
                     }
                     @if (a['estado'] === 'SUSPENDIDO') { <button class="btn btn-chico" type="button" (click)="estadoAloj(a, 'PUBLICADO')">Reactivar</button> }
                   </td></tr>
@@ -286,6 +289,8 @@ export class AdminComponent implements OnInit {
   readonly jobs = ['completar-estancias', 'publicar-outbox', 'purgar-idempotencia'];
   readonly pestana = signal<Pestana>('indicadores');
   readonly cargando = signal(false);
+  /** Código del alojamiento cuyas reservas activas se están revisando antes de eliminarlo. */
+  readonly eliminando = signal<unknown>(null);
   readonly error = signal<ErrorVista | null>(null);
   readonly filas = signal<Fila[]>([]);
   readonly total = signal(0);
@@ -383,6 +388,61 @@ export class AdminComponent implements OnInit {
 
   responderResena(r: ResenaHost): void {
     this.accion(this.catalogo.responderResena(r.id, this.respuestas[r.id]), 'Respuesta publicada', 'resenas');
+  }
+
+  /**
+   * "Eliminar" usa el cambio de estado que ya existe en la API (PATCH .../status -> SUSPENDIDO): el alojamiento
+   * sale de las búsquedas y no se puede reservar, pero su historial (reservas, facturas, reseñas) se conserva.
+   * Se bloquea si tiene reservas activas (pendientes o confirmadas que aún no terminan).
+   */
+  async eliminar(a: Fila): Promise<void> {
+    const codigo = Number(a['codigo']);
+    const nombre = this.texto(a['nombre']);
+    this.ok.limpiar();
+    this.error.set(null);
+    this.eliminando.set(a['codigo']);
+    let activas: ReservaHost[];
+    try {
+      activas = await this.reservasActivas(codigo);
+    } catch (e) {
+      this.eliminando.set(null);
+      this.error.set(leerError(e));
+      return;
+    }
+    this.eliminando.set(null);
+    if (activas.length) {
+      const codigos = activas.slice(0, 5).map((r) => r.codigo).join(', ') + (activas.length > 5 ? '…' : '');
+      this.error.set({
+        status: 409, code: 'RESERVAS_ACTIVAS', campos: {},
+        mensaje: `No se puede eliminar «${nombre}»: tiene ${activas.length === 1 ? '1 reserva activa' : `${activas.length} reservas activas`} (${codigos}). `
+          + 'Espera a que terminen o cancélalas antes de eliminarlo.',
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    const si = await this.confirmar.pedir({
+      titulo: '¿Eliminar este alojamiento?',
+      mensaje: '¿Seguro que quieres eliminar este alojamiento?',
+      detalle: `«${nombre}» dejará de aparecer en las búsquedas y no se podrá reservar. Su historial (reservas pasadas, facturas y reseñas) se conserva.`,
+      confirmar: 'Eliminar',
+      tono: 'peligro',
+    });
+    if (!si) return;
+    this.accion(this.api.estadoAlojamiento(codigo, 'SUSPENDIDO'), `«${nombre}» eliminado del catálogo`, 'alojamientos');
+  }
+
+  /** Reservas pendientes o confirmadas del alojamiento cuya salida aún no pasa (recorre todas las páginas). */
+  private async reservasActivas(codigo: number): Promise<ReservaHost[]> {
+    const hoy = fechaMasDias(0);
+    const activas: ReservaHost[] = [];
+    for (const estado of ['PENDIENTE', 'CONFIRMADA']) {
+      for (let offset = 0; ; offset += 100) {
+        const pagina = await firstValueFrom(this.catalogo.reservas(estado, 100, offset));
+        activas.push(...pagina.items.filter((r) => Number(r.alojamiento_codigo) === codigo && String(r.fecha_salida).slice(0, 10) >= hoy));
+        if (offset + 100 >= pagina.total) break;
+      }
+    }
+    return activas;
   }
 
   async estadoAloj(a: Fila, estado: 'PUBLICADO' | 'SUSPENDIDO'): Promise<void> {
