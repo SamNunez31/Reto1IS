@@ -122,4 +122,4 @@ Al publicar un alojamiento, las direcciones se buscan con **[OpenStreetMap Nomin
 ## Créditos de imágenes
 Las fotos de los alojamientos demo y del banner de búsqueda (Cotopaxi) son de **[Unsplash](https://unsplash.com)** y se usan bajo la [licencia de Unsplash](https://unsplash.com/license) (uso gratuito, no requiere atribución; se agradece igualmente a sus autores). Se sirven directamente desde `images.unsplash.com` (`?w=800&q=75`); el listado completo por alojamiento está en `database/actualizar_imagenes.sql`. Cada URL se verificó (HEAD 200) y cada portada se revisó a ojo: muestra el alojamiento (fachada, habitación, sala o cabaña), nunca un paisaje o animal.
 
-Documentación: [`docs/DOCUMENTO_TECNICO.md`](docs/DOCUMENTO_TECNICO.md) · [`docs/SUPUESTOS.md`](docs/SUPUESTOS.md) · [`docs/GUIA_DE_DEFENSA.md`](docs/GUIA_DE_DEFENSA.md) · [`docs/PENDIENTES.md`](docs/PENDIENTES.md)
+Documentación: [`docs/DOCUMENTO_TECNICO.md`](docs/DOCUMENTO_TECNICO.md)
