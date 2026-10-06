@@ -51,7 +51,6 @@ type Campo = 'nombres' | 'apellidos' | 'telefono';
           <small id="ayuda-per-telefono" class="ayuda">{{ pistaTelefono }}</small>
           <app-campo-mensaje [control]="form.controls.telefono" id="msg-per-telefono" />
         </div>
-        <p class="ayuda">Los datos para la factura los ingresas al momento de pagar cada reserva.</p>
         <div class="acciones">
           <button class="btn btn-primario" type="submit" [disabled]="enviando() || cargando() || !hayCambios() || form.invalid"
                   [attr.aria-describedby]="!hayCambios() ? 'per-sin-cambios' : null">{{ enviando() ? 'Guardando…' : 'Guardar' }}</button>

@@ -61,7 +61,6 @@ import {
           <app-campo-mensaje [control]="form.controls.repetir" id="msg-repetir" />
         </div>
 
-        <p class="ayuda">Los datos para la factura los ingresas al momento de pagar cada reserva.</p>
         <button class="btn btn-primario" type="submit" [disabled]="enviando() || form.invalid">{{ enviando() ? 'Registrando…' : 'Registrarme' }}</button>
         @if (form.invalid && !enviando()) {
           <p class="ayuda">Completa todos los campos para crear tu cuenta. <button type="button" class="btn-enlace" (click)="enviar()">Ver qué falta</button></p>
