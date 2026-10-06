@@ -1,6 +1,7 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { firstValueFrom } from 'rxjs';
 import { RouterLink } from '@angular/router';
 import { DetalleAlojamiento, EventoTraza, Factura, Liquidacion, MiOrden } from '../../core/models/api.models';
 import { ErrorVista, leerError } from '../../core/services/api-base';
@@ -11,12 +12,14 @@ import { avisoTemporal } from '../../shared/aviso';
 import { SelectorEstrellasComponent } from '../../shared/calificacion';
 import { PagoComponent } from '../../shared/pago';
 import { problemaResena, RESENA } from '../../shared/texto-libre';
-import { rangoLargo } from '../../shared/textos';
+import { fechaLarga, rangoLargo, tituloPolitica } from '../../shared/textos';
+import { abrirFacturaPdf, armarFactura } from '../../shared/factura';
+import { fechaHora, textoEvento, textoPago, usd } from '../../shared/historial';
 import { instanteCheckin, lineaCancelacion } from '../../shared/cancelacion';
 import { ConfirmarService } from '../../shared/confirmar';
 import { AlertaErrorComponent, CargandoComponent, EstadoComponent } from '../../shared/ui';
 
-type Panel = 'detalle' | 'modificar' | 'factura' | 'resena' | null;
+type Panel = 'detalle' | 'modificar' | 'resena' | null;
 type Pestana = 'proximas' | 'completadas' | 'canceladas';
 
 /** Agrupa los estados internos de la reserva en las pestañas de "Viajes". */
@@ -57,10 +60,13 @@ const GRUPO: Record<string, Pestana> = {
               <div class="viaje-cuerpo">
                 <div class="viaje-titulo d-flex justify-content-between align-items-start">
                   <h2><a [routerLink]="['/alojamientos', o.accommodation_details.id]">{{ o.accommodation_details.name }}</a></h2>
-                  <app-estado [estado]="o.estado_interno" />
-                  @if (o.estado_interno === 'CONFIRMADA' || o.estado_interno === 'COMPLETADA') {
-                    <app-pago [metodo]="o.metodo_pago" [estado]="o.estado_pago" vista="huesped" />
-                  }
+                  <div class="d-flex align-items-center justify-content-end flex-wrap gap-2">
+                    <app-estado [estado]="o.estado_interno" />
+                    @if (o.estado_interno === 'CANCELADA') { <span class="badge badge-cancelada">Factura anulada</span> }
+                    @if (o.estado_interno === 'CONFIRMADA' || o.estado_interno === 'COMPLETADA') {
+                      <app-pago [metodo]="o.metodo_pago" [estado]="o.estado_pago" vista="huesped" />
+                    }
+                  </div>
                 </div>
                 @if (ciudades()[o.accommodation_details.id]; as ciudad) { <p class="meta">📍 {{ ciudad }}</p> }
                 <ul class="viaje-datos">
@@ -73,7 +79,10 @@ const GRUPO: Record<string, Pestana> = {
                 <div class="acciones">
                   <button class="btn btn-chico" type="button" (click)="abrir(o, 'detalle')" [attr.aria-expanded]="abierto(o, 'detalle')">Ver detalle</button>
                   @if (o._links['modify']) { <button class="btn btn-chico" type="button" (click)="abrir(o, 'modificar')" [attr.aria-expanded]="abierto(o, 'modificar')">Cambiar fechas</button> }
-                  <button class="btn btn-chico" type="button" (click)="abrir(o, 'factura')" [attr.aria-expanded]="abierto(o, 'factura')">Factura</button>
+                  <button class="btn btn-chico d-inline-flex align-items-center gap-1" type="button" (click)="verFactura(o)" [disabled]="generando() === o.order_id"
+                          [attr.aria-label]="'Factura en PDF de la reserva ' + o.locator + ' (se abre en una pestaña nueva)'">
+                    <svg class="icono-pdf" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" d="M6 2.5h8l5 5V21.5H6z M14 2.5v5h5"/><text x="12.5" y="18.2" font-size="6.2" font-weight="800" text-anchor="middle" fill="currentColor">PDF</text></svg>
+                    {{ generando() === o.order_id ? 'Generando…' : 'Factura' }}</button>
                   @if (o.estado_interno === 'COMPLETADA' && !o.tiene_resena) {
                     <button class="btn btn-chico btn-secundario" type="button" (click)="abrir(o, 'resena')" [attr.aria-expanded]="abierto(o, 'resena')">★ Calificar</button>
                   }
@@ -88,14 +97,31 @@ const GRUPO: Record<string, Pestana> = {
                     <app-alerta-error [error]="errorPanel()" />
                     @switch (panel()) {
                       @case ('detalle') {
-                        <dl class="desglose">
-                          <dt>Reservado el</dt><dd>{{ o.creation_date | date: 'medium' }}</dd>
-                          @for (u of o.accommodation_details.units; track u.name) { <dt>Unidad</dt><dd>{{ u.quantity }} × {{ u.name }}</dd> }
+                        <dl class="datos-unidad">
+                          <div><dt>Alojamiento</dt><dd>{{ o.accommodation_details.name }}</dd></div>
+                          <div><dt>Unidad</dt><dd>{{ unidades(o) }}</dd></div>
+                          <div><dt>Check-in</dt><dd>{{ entrada(o) }}</dd></div>
+                          <div><dt>Check-out</dt><dd>{{ salida(o) }}</dd></div>
+                          <div><dt>Huéspedes</dt><dd>{{ o.accommodation_details.guests }}</dd></div>
+                          <div><dt>Pago</dt><dd>{{ pago(o.metodo_pago, o.estado_pago) }}</dd></div>
+                          <div><dt>Código de reserva</dt><dd>{{ o.locator }}</dd></div>
                         </dl>
+                        @if (politicaTexto(o); as pol) { <p class="meta"><strong>Política de cancelación:</strong> {{ pol }}</p> }
+                        <h3>Desglose del total</h3>
+                        @if (detalleFactura(); as f) {
+                          <dl class="desglose">
+                            <dt>Hospedaje (incluye limpieza si aplica)</dt><dd>{{ usd(f.subtotal_sin_impuestos) }}</dd>
+                            @if (f.servicio > 0) { <dt>Cargo por servicio</dt><dd>{{ usd(f.servicio) }}</dd> }
+                            <dt>IVA</dt><dd>{{ usd(f.iva) }}</dd>
+                            <dt class="total">Total</dt><dd class="total">{{ usd(f.total) }}</dd>
+                          </dl>
+                        } @else {
+                          <dl class="desglose"><dt class="total">Total</dt><dd class="total">{{ usd(o.total_price) }}</dd></dl>
+                        }
                         <h3>Historial</h3>
                         <ol class="timeline">
                           @for (e of eventos(); track e.evento_id) {
-                            <li><strong>{{ e.tipo }}</strong> · {{ e.created_at | date: 'medium' }}</li>
+                            <li><strong>{{ evento(e, o) }}</strong> · <time [attr.datetime]="e.created_at">{{ fechaHora(e.created_at) }}</time></li>
                           } @empty { <li>Sin eventos</li> }
                         </ol>
                       }
@@ -107,19 +133,6 @@ const GRUPO: Record<string, Pestana> = {
                         </form>
                         @if (problemaFechas(o); as p) { <p class="msg-campo msg-error" [id]="'msg-mod-' + o.order_id" role="alert"><span aria-hidden="true">✗</span> {{ p }}</p> }
                         <p class="ayuda">El precio se recalcula; la diferencia se cobra o se reembolsa (simulado).</p>
-                      }
-                      @case ('factura') {
-                        @if (factura(); as f) {
-                          <dl class="desglose">
-                            <dt>Número</dt><dd>{{ f.numero }} ({{ f.estado }})</dd>
-                            <dt>Emisor</dt><dd>{{ f.emisor_nombre }}</dd>
-                            <dt>Comprador</dt><dd>{{ f.comprador_nombre }} · {{ f.comprador_identificacion }}</dd>
-                            <dt>Subtotal</dt><dd>{{ f.subtotal_sin_impuestos | currency: 'USD' }}</dd>
-                            <dt>Servicio</dt><dd>{{ f.servicio | currency: 'USD' }}</dd>
-                            <dt>IVA</dt><dd>{{ f.iva | currency: 'USD' }}</dd>
-                            <dt class="total">Total</dt><dd class="total">{{ f.total | currency: 'USD' }}</dd>
-                          </dl>
-                        } @else if (!errorPanel()) { <app-cargando /> }
                       }
                       @case ('resena') {
                         <form (ngSubmit)="resenar(o)">
@@ -186,7 +199,13 @@ export class MisReservasComponent implements OnInit {
   readonly panel = signal<Panel>(null);
   readonly errorPanel = signal<ErrorVista | null>(null);
   readonly trabajando = signal(false);
-  readonly factura = signal<Factura | null>(null);
+  /** Factura de la reserva abierta en "Ver detalle" (para el desglose del total). */
+  readonly detalleFactura = signal<Factura | null>(null);
+  /** order_id cuya factura en PDF se está generando. */
+  readonly generando = signal<string | null>(null);
+  readonly usd = usd;
+  readonly fechaHora = fechaHora;
+  readonly pago = textoPago;
   readonly eventos = signal<EventoTraza[]>([]);
   nuevaEntrada = '';
   nuevaSalida = '';
@@ -255,6 +274,55 @@ export class MisReservasComponent implements OnInit {
     });
   }
 
+  unidades(o: MiOrden): string {
+    return o.accommodation_details.units.map((u) => `${u.quantity} × ${u.name}`).join(', ');
+  }
+  entrada(o: MiOrden): string {
+    const h = this.politicas()[o.accommodation_details.id]?.checkin_from;
+    return fechaLarga(o.accommodation_details.checkin) + (h ? `, desde las ${h}` : '');
+  }
+  salida(o: MiOrden): string {
+    const h = this.politicas()[o.accommodation_details.id]?.checkout_until;
+    return fechaLarga(o.accommodation_details.checkout) + (h ? `, hasta las ${h}` : '');
+  }
+  evento(e: EventoTraza, o: MiOrden): string {
+    return textoEvento(e, o.metodo_pago, o.estado_pago);
+  }
+  /** Política del alojamiento: con fechas concretas si la reserva aún se puede cancelar. */
+  politicaTexto(o: MiOrden): string {
+    const p = this.politicas()[o.accommodation_details.id]?.cancellation;
+    if (!p) return '';
+    const linea = o._links['cancel'] ? this.politicaDe(o) : '';
+    return `${tituloPolitica(p.name)}: ${linea || p.description}`;
+  }
+
+  /** Genera la factura en PDF (anulada si la reserva se canceló) y la abre en una pestaña nueva. */
+  async verFactura(o: MiOrden): Promise<void> {
+    this.error.set(null);
+    this.generando.set(o.order_id);
+    try {
+      await abrirFacturaPdf(async () => {
+        const [factura, eventos] = await Promise.all([
+          firstValueFrom(this.reservas.factura(o.order_id)),
+          o.estado_interno === 'CANCELADA' ? firstValueFrom(this.reservas.timeline(o.order_id)) : Promise.resolve([] as EventoTraza[]),
+        ]);
+        const p = this.politicas()[o.accommodation_details.id];
+        const d = o.accommodation_details;
+        return armarFactura({
+          factura,
+          orden: { locator: o.locator, alojamiento: d.name, checkin: d.checkin, checkout: d.checkout, huespedes: d.guests, unidades: d.units, metodoPago: o.metodo_pago, estadoPago: o.estado_pago },
+          horaCheckin: p?.checkin_from, horaCheckout: p?.checkout_until,
+          politica: p?.cancellation ? tituloPolitica(p.cancellation.name) : null,
+          eventos,
+        });
+      });
+    } catch (e) {
+      this.error.set(leerError(e));
+    } finally {
+      this.generando.set(null);
+    }
+  }
+
   /** "Cancelación gratis hasta el 9 nov, 14:00 · …" con las fechas de esta reserva ('' si no hay datos). */
   politicaDe(o: MiOrden): string {
     const p = this.politicas()[o.accommodation_details.id];
@@ -277,12 +345,12 @@ export class MisReservasComponent implements OnInit {
     this.errorPanel.set(null);
     this.ok.limpiar();
     const err = (e: unknown) => this.errorPanel.set(leerError(e));
-    if (panel === 'factura') {
-      this.factura.set(null);
-      this.reservas.factura(o.order_id).subscribe({ next: (f) => this.factura.set(f), error: err });
-    } else if (panel === 'detalle') {
+    if (panel === 'detalle') {
       this.eventos.set([]);
+      this.detalleFactura.set(null);
       this.reservas.timeline(o.order_id).subscribe({ next: (t) => this.eventos.set(t), error: err });
+      // Sin factura (p. ej. reserva rechazada) se muestra solo el total
+      this.reservas.factura(o.order_id).subscribe({ next: (f) => this.detalleFactura.set(f), error: () => undefined });
     } else if (panel === 'modificar') {
       this.nuevaEntrada = o.accommodation_details.checkin;
       this.nuevaSalida = o.accommodation_details.checkout;
