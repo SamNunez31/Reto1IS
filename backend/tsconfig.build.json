@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "incremental": false },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test",
+    "**/*spec.ts",
+    "src/modules/atracciones",
+    "src/modules/autos",
+    "src/modules/vuelos"
+  ]
+}

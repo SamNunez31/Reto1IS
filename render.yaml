@@ -1,0 +1,34 @@
+# Blueprint de Render para el backend (NestJS). Los valores secretos se cargan en el panel de Render.
+services:
+  - type: web
+    name: booking-alojamientos-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    region: oregon
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: APP_ENV
+        value: production
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL          # pooler de Supabase (IPv4)
+        sync: false
+      - key: JWT_SECRET            # >= 32 caracteres aleatorios
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 30m
+      - key: CORS_ORIGINS          # URL real del frontend en Vercel
+        sync: false
+      - key: PUBLIC_WEB_URL        # URL real del frontend en Vercel
+        sync: false
+      - key: API_PUBLIC_URL        # URL de este servicio en Render
+        sync: false
+      - key: API_DEPRECATION_DATE
+        value: "2027-12-31"
+      - key: JOBS_ENABLED
+        value: "true"

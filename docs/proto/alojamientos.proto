@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package alojamientos;
+
+// Contrato gRPC CONCEPTUAL (Reto 1). No se implementa todavía: documenta cómo otro dominio
+// (p. ej. Vuelos o un paquete turístico) consultaría disponibilidad con baja latencia (unario)
+// y cómo recibiría cambios de precio/cupo en tiempo real (streaming de servidor).
+
+service AlojamientosService {
+  // Unario: misma semántica que POST /availability del contrato REST.
+  rpc GetDisponibilidad (GetDisponibilidadRequest) returns (DisponibilidadResponse);
+
+  // Streaming de servidor: el cliente se suscribe y recibe cada cambio de precio o cupo
+  // (origen: evento_outbox -> publicador -> stream).
+  rpc StreamCambios (StreamCambiosRequest) returns (stream CambioDisponibilidad);
+}
+
+message GetDisponibilidadRequest {
+  int32 alojamiento = 1;        // código entero público (nunca el UUID interno)
+  string checkin = 2;           // YYYY-MM-DD
+  string checkout = 3;          // YYYY-MM-DD
+  int32 adultos = 4;
+  int32 ninos = 5;
+  int32 habitaciones = 6;
+}
+
+message Precio {
+  double base = 1;
+  double cargoServicio = 2;
+  double impuestos = 3;
+  double limpieza = 4;
+  double total = 5;
+}
+
+message Producto {
+  string id = 1;                // product_id opaco (base64url unidad|checkin|checkout)
+  string nombre = 2;
+  int32 capacidadMaxima = 3;
+  int32 unidadesDisponibles = 4;
+  Precio precio = 5;
+  string politicaCancelacion = 6;
+}
+
+message DisponibilidadResponse {
+  int32 alojamiento = 1;
+  string moneda = 2;            // siempre "USD"
+  repeated Producto productos = 3;
+}
+
+message StreamCambiosRequest {
+  repeated int32 alojamientos = 1;   // vacío = todos
+  string desde = 2;                  // ISO 8601: reanudar después de este instante
+}
+
+message CambioDisponibilidad {
+  string eventoId = 1;          // id del evento en el outbox (idempotencia del consumidor)
+  string tipo = 2;              // PRECIO_CAMBIADO | CUPO_CAMBIADO | ALOJAMIENTO_SUSPENDIDO
+  int32 alojamiento = 3;
+  string fecha = 4;             // día afectado YYYY-MM-DD
+  double precioNoche = 5;
+  int32 cupoLibre = 6;
+  string correlacionId = 7;
+}

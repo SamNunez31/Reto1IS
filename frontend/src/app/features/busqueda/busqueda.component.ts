@@ -1,0 +1,320 @@
+import { CurrencyPipe } from '@angular/common';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { switchMap } from 'rxjs';
+import { CriteriosBusqueda, DetalleAlojamiento } from '../../core/models/api.models';
+import { ErrorVista, leerError } from '../../core/services/api-base';
+import { CatalogoService } from '../../core/services/catalogo.service';
+import { fechaMasDias } from '../../shared/fechas';
+import { CalificacionComponent } from '../../shared/calificacion';
+import { noches, plural, rangoCorto, textoHuespedes, textoPersonas } from '../../shared/textos';
+import { AlertaErrorComponent, EstrellasComponent } from '../../shared/ui';
+
+@Component({
+  selector: 'app-busqueda',
+  imports: [ReactiveFormsModule, RouterLink, CurrencyPipe, AlertaErrorComponent, EstrellasComponent, CalificacionComponent],
+  template: `
+    <section class="banner" aria-labelledby="titulo-banner">
+      <div class="banner-texto">
+        <p class="antetitulo">Hoteles · Hostales · Cabañas · Casas</p>
+        <h1 id="titulo-banner">Ecuador, a tu ritmo</h1>
+        <p class="bajada">De los Andes a Galápagos, con el precio final claro antes de reservar.</p>
+      </div>
+      <p class="credito">Foto: Cotopaxi · Unsplash</p>
+    </section>
+
+    <form class="buscador" [formGroup]="form" (ngSubmit)="buscar()" novalidate aria-label="Buscar alojamiento">
+      <div class="buscador-fila">
+        <div class="campo campo-destino" role="group" aria-labelledby="et-destino">
+          <span class="campo-etiqueta" id="et-destino">Destino</span>
+          <div class="campo-doble">
+            <select formControlName="province" aria-label="Provincia">
+              <option value="">Todas</option>
+              @for (p of constantes()?.provinces ?? []; track p.name) { <option [value]="p.name">{{ p.name }}</option> }
+            </select>
+            <select formControlName="city" aria-label="Ciudad">
+              <option [ngValue]="null">Todas las ciudades</option>
+              @for (c of ciudades(); track c.id) { <option [ngValue]="c.id">{{ c.name }}</option> }
+            </select>
+          </div>
+        </div>
+        <label class="campo"><span class="campo-etiqueta">Entrada</span>
+          <input type="date" formControlName="checkin" [min]="hoy" required />
+        </label>
+        <label class="campo"><span class="campo-etiqueta">Salida</span>
+          <input type="date" formControlName="checkout" [min]="form.controls.checkin.value" required />
+        </label>
+        <div class="campo">
+          <span class="campo-etiqueta" id="et-huespedes">Huéspedes</span>
+          <button class="campo-boton" type="button" aria-labelledby="et-huespedes" aria-controls="panel-huespedes"
+                  [attr.aria-expanded]="panelHuespedes()" (click)="panelHuespedes.set(!panelHuespedes())">{{ resumenHuespedes() }}</button>
+          @if (panelHuespedes()) {
+            <div class="panel-huespedes" id="panel-huespedes" (keydown.escape)="panelHuespedes.set(false)">
+              <label>Adultos <input type="number" formControlName="adultos" min="1" max="30" /></label>
+              <label>Niños <input type="number" formControlName="ninos" min="0" max="10" /></label>
+              <label>Habitaciones <input type="number" formControlName="habitaciones" min="1" max="20" /></label>
+              <button class="btn btn-secundario btn-chico" type="button" (click)="panelHuespedes.set(false)">Listo</button>
+            </div>
+          }
+        </div>
+        <button class="btn btn-primario btn-buscar" type="submit" [disabled]="form.invalid || cargando()">Buscar</button>
+      </div>
+
+      <div class="buscador-pie">
+        <button class="btn-filtros" type="button" aria-controls="mas-filtros" [attr.aria-expanded]="masFiltros()" (click)="masFiltros.set(!masFiltros())">
+          Más filtros
+          @if (filtrosActivos()) { <span class="contador" [attr.aria-label]="filtrosActivos() + ' activos'">{{ filtrosActivos() }}</span> }
+          <span class="flecha" aria-hidden="true">▾</span>
+        </button>
+        @if (form.invalid) { <p class="aviso-form" role="alert">Revisa las fechas y que haya al menos 1 adulto y 1 habitación.</p> }
+      </div>
+
+      @if (masFiltros()) {
+        <div class="mas-filtros" id="mas-filtros">
+          <label>Tipo
+            <select formControlName="tipo">
+              <option [ngValue]="null">Todos</option>
+              @for (t of constantes()?.accommodation_types ?? []; track t.id) { <option [ngValue]="t.id">{{ t.name }}</option> }
+            </select>
+          </label>
+          <label>Estrellas mín.
+            <select formControlName="estrellas">
+              <option [ngValue]="null">Cualquiera</option>
+              @for (e of [1, 2, 3, 4, 5]; track e) { <option [ngValue]="e">{{ e }}+</option> }
+            </select>
+          </label>
+          <label>Cerca del aeropuerto
+            <select formControlName="aeropuerto">
+              <option value="">Sin seleccionar</option>
+              @for (a of constantes()?.airports ?? []; track a.iata) { <option [value]="a.iata">{{ a.iata }} · {{ a.city }}</option> }
+            </select>
+          </label>
+          <label>Máx. km al aeropuerto <input type="number" formControlName="km" min="0" [attr.disabled]="form.controls.aeropuerto.value ? null : true" /></label>
+          <label>Precio máx./noche (USD) <input type="number" formControlName="precio" min="0" /></label>
+          <label>Ordenar por
+            <select formControlName="orden">
+              <option value="relevancia">Relevancia</option>
+              <option value="precio_asc">Precio: menor a mayor</option>
+              <option value="precio_desc">Precio: mayor a menor</option>
+              <option value="calificacion">Mejor calificados</option>
+              <option value="distancia">Más cerca del aeropuerto</option>
+            </select>
+          </label>
+        </div>
+      }
+    </form>
+
+    <app-alerta-error [error]="error()" />
+    @if (cargando()) {
+      <p class="sr-only" role="status">Buscando alojamientos…</p>
+      <div class="grid-tarjetas" aria-hidden="true">
+        @for (i of esqueletos; track i) {
+          <div class="tarjeta-aloj esqueleto">
+            <div class="tarjeta-foto"></div>
+            <div class="cuerpo"><div class="linea-esq media"></div><div class="linea-esq corta"></div><div class="linea-esq"></div></div>
+          </div>
+        }
+      </div>
+    } @else if (buscado() && !resultados().length) {
+      <div class="sin-resultados" role="status">
+        <p class="icono" aria-hidden="true">🧭</p>
+        <h2>No encontramos alojamientos</h2>
+        <p>Prueba con otras fechas, otro destino o quita algunos filtros: hay mucho Ecuador por descubrir.</p>
+        <button class="btn btn-secundario" type="button" (click)="quitarFiltros()">Quitar filtros</button>
+      </div>
+    } @else {
+      @if (resultados().length) {
+        <div class="resultados-cabecera">
+          <h2>Alojamientos disponibles</h2>
+          <p>{{ resumenResultados() }}</p>
+        </div>
+      }
+      <div class="grid-tarjetas">
+        @for (a of resultados(); track a.id) {
+          <a class="tarjeta-aloj" [routerLink]="['/alojamientos', a.id]">
+            <div class="tarjeta-foto">
+              <img [src]="a.cover_photo || 'https://placehold.co/600x400?text=Sin+foto'" [alt]="'Foto de ' + a.name" loading="lazy" />
+              <span class="tarjeta-tipo">{{ a.type }}</span>
+            </div>
+            <div class="cuerpo">
+              <h2>{{ a.name }}</h2>
+              <app-calificacion [nota]="a.rating.score" [resenas]="a.rating.reviews" [chica]="true" />
+              <p class="ubicacion"><span>{{ a.city.name }}, {{ a.city.province }}</span><app-estrellas [n]="a.stars" /></p>
+              @if (a.airports[0]; as ae) { <p class="meta">✈ {{ ae.iata }} a {{ ae.distance_km }} km</p> }
+              <div class="pie-tarjeta solo-precio">
+                @if (a.price_from) {
+                  <span class="precio-desde"><small>desde</small><strong>{{ a.price_from | currency: 'USD' }}</strong> <span>/ noche</span></span>
+                }
+              </div>
+            </div>
+          </a>
+        }
+      </div>
+      @if (resultados().length) {
+        <nav class="paginacion" aria-label="Paginación">
+          <button class="btn" type="button" (click)="anterior()" [disabled]="!cursores().length">Anterior</button>
+          <span>Página {{ cursores().length + 1 }}</span>
+          <button class="btn" type="button" (click)="siguiente()" [disabled]="!siguientePagina()">Siguiente</button>
+        </nav>
+      }
+    }
+  `,
+})
+export class BusquedaComponent implements OnInit {
+  private readonly catalogo = inject(CatalogoService);
+  readonly hoy = fechaMasDias(0);
+  readonly constantes = toSignal(this.catalogo.constantes());
+  readonly resultados = signal<DetalleAlojamiento[]>([]);
+  /** "10 alojamientos · 19–21 oct · 2 noches · 5 huéspedes, 3 habitaciones" (criterios de la última búsqueda). */
+  readonly resumenResultados = computed(() => {
+    const c = this.catalogo.criterios();
+    const n = this.resultados().length;
+    if (!c) return plural(n, 'alojamiento');
+    const huespedes = c.guests.number_of_adults + (c.guests.children?.length ?? 0);
+    return [plural(n, 'alojamiento'), rangoCorto(c.checkin, c.checkout), plural(noches(c.checkin, c.checkout), 'noche'),
+      textoHuespedes(huespedes, c.guests.number_of_rooms, ', ')].join(' · ');
+  });
+  readonly cargando = signal(false);
+  readonly buscado = signal(false);
+  readonly error = signal<ErrorVista | null>(null);
+  readonly siguientePagina = signal<string | null>(null);
+  /** Cursores de las páginas anteriores (para "Anterior"). */
+  readonly cursores = signal<(string | undefined)[]>([]);
+  private paginaActual: string | undefined;
+
+  readonly form = inject(FormBuilder).group({
+    province: [''],
+    city: [null as number | null],
+    checkin: [fechaMasDias(14), Validators.required],
+    checkout: [fechaMasDias(16), Validators.required],
+    adultos: [2, [Validators.required, Validators.min(1)]],
+    ninos: [0, [Validators.min(0)]],
+    habitaciones: [1, [Validators.required, Validators.min(1)]],
+    tipo: [null as number | null],
+    aeropuerto: [''],
+    km: [null as number | null],
+    precio: [null as number | null],
+    estrellas: [null as number | null],
+    orden: ['relevancia' as NonNullable<CriteriosBusqueda['sort_by']>],
+  });
+
+  private readonly provincia = toSignal(this.form.controls.province.valueChanges, { initialValue: '' });
+  readonly ciudades = computed(() => {
+    const p = this.provincia();
+    return (this.constantes()?.cities ?? []).filter((c) => !p || c.province === p);
+  });
+
+  // Estado solo de interfaz (no cambia los criterios ni la llamada al API)
+  readonly masFiltros = signal(false);
+  readonly panelHuespedes = signal(false);
+  readonly esqueletos = [1, 2, 3, 4, 5, 6, 7, 8];
+  private readonly valores = toSignal(this.form.valueChanges, { initialValue: this.form.getRawValue() });
+  readonly resumenHuespedes = computed(() => {
+    const v = this.valores();
+    const adultos = Number(v.adultos) || 0;
+    const ninos = Number(v.ninos) || 0;
+    const hab = Number(v.habitaciones) || 0;
+    return `${textoPersonas(adultos, ninos)} · ${plural(hab, 'habitación', 'habitaciones')}`;
+  });
+  /** Filtros de "Más filtros" con valor distinto al predeterminado. */
+  readonly filtrosActivos = computed(() => {
+    const v = this.valores();
+    return [v.tipo, v.estrellas, v.aeropuerto, v.precio, v.orden !== 'relevancia' ? v.orden : null].filter((x) => x !== null && x !== undefined && x !== '').length;
+  });
+
+  ngOnInit(): void {
+    const previos = this.catalogo.criterios();
+    if (previos) {
+      this.form.patchValue({
+        province: previos.province ?? '', city: previos.city ?? null, checkin: previos.checkin, checkout: previos.checkout,
+        adultos: previos.guests.number_of_adults, ninos: previos.guests.children?.length ?? 0,
+        habitaciones: previos.guests.number_of_rooms, tipo: previos.accommodation_type ?? null, aeropuerto: previos.airport ?? '',
+        km: previos.max_airport_km ?? null, precio: previos.max_price ?? null, estrellas: previos.min_stars ?? null,
+        orden: previos.sort_by ?? 'relevancia',
+      });
+    }
+    this.form.controls.province.valueChanges.subscribe(() => this.form.controls.city.setValue(null));
+    this.buscar();
+  }
+
+  buscar(): void {
+    this.panelHuespedes.set(false);
+    this.cursores.set([]);
+    this.cargar(undefined);
+  }
+
+  /** Vuelve destino y "Más filtros" a sus valores iniciales (conserva fechas y huéspedes) y busca de nuevo. */
+  quitarFiltros(): void {
+    this.form.patchValue({ province: '', city: null, tipo: null, aeropuerto: '', km: null, precio: null, estrellas: null, orden: 'relevancia' });
+    this.buscar();
+  }
+
+  siguiente(): void {
+    const sig = this.siguientePagina();
+    if (!sig) return;
+    this.cursores.update((c) => [...c, this.paginaActual]);
+    this.cargar(sig);
+  }
+
+  anterior(): void {
+    const c = [...this.cursores()];
+    const previo = c.pop();
+    this.cursores.set(c);
+    this.cargar(previo);
+  }
+
+  private criterios(): CriteriosBusqueda {
+    const v = this.form.getRawValue();
+    const c: CriteriosBusqueda = {
+      checkin: v.checkin ?? '',
+      checkout: v.checkout ?? '',
+      guests: {
+        number_of_adults: Number(v.adultos),
+        number_of_rooms: Number(v.habitaciones),
+        ...(Number(v.ninos) > 0 ? { children: Array(Number(v.ninos)).fill(8) } : {}),
+      },
+      sort_by: v.orden ?? 'relevancia',
+    };
+    if (v.province) c.province = v.province;
+    if (v.city) c.city = v.city;
+    if (v.tipo) c.accommodation_type = v.tipo;
+    if (v.aeropuerto) c.airport = v.aeropuerto;
+    if (v.aeropuerto && v.km !== null && v.km !== undefined && `${v.km}` !== '') c.max_airport_km = Number(v.km);
+    if (v.precio) c.max_price = Number(v.precio);
+    if (v.estrellas) c.min_stars = v.estrellas;
+    return c;
+  }
+
+  private cargar(page: string | undefined): void {
+    const c = this.criterios();
+    this.catalogo.criterios.set(c);
+    this.paginaActual = page;
+    this.cargando.set(true);
+    this.error.set(null);
+    let orden: number[] = [];
+    this.catalogo
+      .buscar(c, page)
+      .pipe(
+        switchMap((r) => {
+          this.siguientePagina.set(r.next_page);
+          orden = r.data.map((d) => d.id);
+          return this.catalogo.detalles(orden);
+        }),
+      )
+      .subscribe({
+        next: (detalles) => {
+          // /details devuelve por código; se respeta el orden de /search
+          this.resultados.set([...detalles].sort((a, b) => orden.indexOf(a.id) - orden.indexOf(b.id)));
+          this.cargando.set(false);
+          this.buscado.set(true);
+        },
+        error: (e) => {
+          this.error.set(leerError(e));
+          this.resultados.set([]);
+          this.cargando.set(false);
+        },
+      });
+  }
+}
