@@ -45,7 +45,7 @@ type SeccionForm = keyof typeof CAMPOS;
   ],
   template: `
     <a routerLink="/admin" [queryParams]="{ tab: 'alojamientos' }" class="volver">← Volver a Alojamientos</a>
-    <div class="edicion-cabecera">
+    <div class="edicion-cabecera d-flex align-items-center flex-wrap mb-3">
       <h1>{{ nombre() || 'Editar alojamiento' }}</h1>
       @if (estado()) { <app-estado [estado]="estado()" /> }
     </div>
@@ -80,7 +80,7 @@ type SeccionForm = keyof typeof CAMPOS;
             <app-sec-texto [form]="form" />
             <h3>Comodidades</h3>
             <app-sec-amenidades [form]="form" />
-            <footer class="seccion-pie">
+            <footer class="seccion-pie d-flex align-items-center flex-wrap gap-3 mt-2 pt-3">
               <button type="button" class="btn btn-secundario" (click)="guardar('basica')" [disabled]="guardando() === 'basica' || !pendiente('basica') || seccionInvalida('basica')">{{ guardando() === 'basica' ? 'Guardando…' : 'Guardar cambios' }}</button>
               <button type="button" class="btn" (click)="descartar('basica')" [disabled]="guardando() === 'basica' || !pendiente('basica')">Descartar cambios</button>
               <span class="estado-seccion" [class.pendiente]="pendiente('basica')" [class.guardado]="estadoSeccion('basica') === 'Guardado'" role="status">{{ estadoSeccion('basica') }}</span>
@@ -93,7 +93,7 @@ type SeccionForm = keyof typeof CAMPOS;
           <section class="tarjeta seccion" id="sec-ubicacion" aria-labelledby="t-ubicacion">
             <h2 id="t-ubicacion">Ubicación</h2>
             <app-sec-ubicacion [form]="form" />
-            <footer class="seccion-pie">
+            <footer class="seccion-pie d-flex align-items-center flex-wrap gap-3 mt-2 pt-3">
               <button type="button" class="btn btn-secundario" (click)="guardar('ubicacion')" [disabled]="guardando() === 'ubicacion' || !pendiente('ubicacion') || seccionInvalida('ubicacion')">{{ guardando() === 'ubicacion' ? 'Guardando…' : 'Guardar cambios' }}</button>
               <button type="button" class="btn" (click)="descartar('ubicacion')" [disabled]="guardando() === 'ubicacion' || !pendiente('ubicacion')">Descartar cambios</button>
               <span class="estado-seccion" [class.pendiente]="pendiente('ubicacion')" [class.guardado]="estadoSeccion('ubicacion') === 'Guardado'" role="status">{{ estadoSeccion('ubicacion') }}</span>
@@ -107,7 +107,7 @@ type SeccionForm = keyof typeof CAMPOS;
             <h2 id="t-reglas">Reglas y reservas</h2>
             <app-sec-horarios [form]="form" />
             <app-sec-reservas [form]="form" />
-            <footer class="seccion-pie">
+            <footer class="seccion-pie d-flex align-items-center flex-wrap gap-3 mt-2 pt-3">
               <button type="button" class="btn btn-secundario" (click)="guardar('reglas')" [disabled]="guardando() === 'reglas' || !pendiente('reglas') || seccionInvalida('reglas')">{{ guardando() === 'reglas' ? 'Guardando…' : 'Guardar cambios' }}</button>
               <button type="button" class="btn" (click)="descartar('reglas')" [disabled]="guardando() === 'reglas' || !pendiente('reglas')">Descartar cambios</button>
               <span class="estado-seccion" [class.pendiente]="pendiente('reglas')" [class.guardado]="estadoSeccion('reglas') === 'Guardado'" role="status">{{ estadoSeccion('reglas') }}</span>
@@ -133,7 +133,7 @@ type SeccionForm = keyof typeof CAMPOS;
           <section class="tarjeta seccion" id="sec-fotos" aria-labelledby="t-fotos">
             <h2 id="t-fotos">Fotos</h2>
             <app-sec-fotos [form]="form" />
-            <footer class="seccion-pie">
+            <footer class="seccion-pie d-flex align-items-center flex-wrap gap-3 mt-2 pt-3">
               <button type="button" class="btn btn-secundario" (click)="guardar('fotos')" [disabled]="guardando() === 'fotos' || !pendiente('fotos') || seccionInvalida('fotos')">{{ guardando() === 'fotos' ? 'Guardando…' : 'Guardar cambios' }}</button>
               <button type="button" class="btn" (click)="descartar('fotos')" [disabled]="guardando() === 'fotos' || !pendiente('fotos')">Descartar cambios</button>
               <span class="estado-seccion" [class.pendiente]="pendiente('fotos')" [class.guardado]="estadoSeccion('fotos') === 'Guardado'" role="status">{{ estadoSeccion('fotos') }}</span>

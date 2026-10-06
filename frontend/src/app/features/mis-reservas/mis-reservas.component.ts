@@ -55,7 +55,7 @@ const GRUPO: Record<string, Pestana> = {
                 <img [src]="o.portada || 'https://placehold.co/600x400?text=Sin+foto'" alt="" loading="lazy" />
               </a>
               <div class="viaje-cuerpo">
-                <div class="viaje-titulo">
+                <div class="viaje-titulo d-flex justify-content-between align-items-start">
                   <h2><a [routerLink]="['/alojamientos', o.accommodation_details.id]">{{ o.accommodation_details.name }}</a></h2>
                   <app-estado [estado]="o.estado_interno" />
                   @if (o.estado_interno === 'CONFIRMADA' || o.estado_interno === 'COMPLETADA') {
@@ -150,7 +150,7 @@ const GRUPO: Record<string, Pestana> = {
           }
         </div>
         @if (total() > limite) {
-          <nav class="paginacion" aria-label="Paginación">
+          <nav class="paginacion d-flex justify-content-center align-items-center gap-3" aria-label="Paginación">
             <button class="btn" type="button" (click)="pagina(-1)" [disabled]="offset() === 0">Anterior</button>
             <button class="btn" type="button" (click)="pagina(1)" [disabled]="offset() + limite >= total()">Siguiente</button>
           </nav>

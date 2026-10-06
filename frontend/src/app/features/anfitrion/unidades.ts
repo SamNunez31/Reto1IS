@@ -81,7 +81,7 @@ export class CamposUnidadComponent {
     } @else {
       @for (g of lista().controls; track $index; let i = $index) {
         <section class="unidad-tarjeta">
-          <header class="unidad-cabecera">
+          <header class="unidad-cabecera d-flex justify-content-between align-items-center flex-wrap">
             <h3>🛏️ Tipo de habitación {{ i + 1 }}</h3>
             @if (lista().length > 1) { <button type="button" class="btn btn-chico" (click)="quitar(i)">Quitar</button> }
           </header>
@@ -125,7 +125,7 @@ export class UnidadesNuevasComponent {
         <p class="icono" aria-hidden="true">🛏️</p>
         <h3>Falta lo más importante: qué se reserva y a qué precio</h3>
         <p>Sin esto el alojamiento no se puede publicar. ¿Qué ofreces?</p>
-        <div class="acciones centro">
+        <div class="acciones justify-content-center">
           <button type="button" class="btn btn-primario" (click)="nueva('COMPLETO')">Todo el alojamiento</button>
           <button type="button" class="btn btn-secundario" (click)="nueva('HABITACIONES')">Varios tipos de habitación</button>
         </div>
@@ -135,7 +135,7 @@ export class UnidadesNuevasComponent {
     <div class="lista-unidades">
       @for (u of unidades(); track u.id) {
         <article class="unidad-tarjeta" [class.inactiva]="!u.activa">
-          <header class="unidad-cabecera">
+          <header class="unidad-cabecera d-flex justify-content-between align-items-center flex-wrap">
             <h3>{{ unica() ? 'Precio y capacidad' : u.nombre }}</h3>
             <span class="badge" [class.badge-publicado]="u.activa" [class.badge-borrador]="!u.activa">{{ u.activa ? 'Disponible para reservar' : 'Desactivada' }}</span>
           </header>

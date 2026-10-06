@@ -44,7 +44,7 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
       @case ('observabilidad') { <app-observabilidad /> }
 
       @case ('alojamientos') {
-        <div class="barra-acciones">
+        <div class="barra-acciones d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
           <form class="fila filtros-aloj" role="search" (ngSubmit)="ir('alojamientos')">
             <label>Estado
               <select name="fe" [(ngModel)]="filtroAloj" (change)="ir('alojamientos')">
@@ -122,7 +122,7 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
         <p class="ayuda">Las reseñas las publican solo huéspedes con estadía completada y pasan un control automático de texto. No se moderan a mano; puedes responderlas una vez.</p>
         @for (r of resenas(); track r.id) {
           <article class="tarjeta">
-            <p class="resena-cabecera"><strong>{{ r.autor }}</strong> en {{ r.alojamiento }} <app-calificacion [nota]="r.nota_global" [sinConteo]="true" [chica]="true" />
+            <p class="resena-cabecera d-flex align-items-center flex-wrap gap-2"><strong>{{ r.autor }}</strong> en {{ r.alojamiento }} <app-calificacion [nota]="r.nota_global" [sinConteo]="true" [chica]="true" />
               <small>{{ fecha(r.created_at) }}</small></p>
             @if (r.comentario) { <p class="texto">{{ r.comentario }}</p> }
             @if (r.respuesta_anfitrion) {
@@ -160,7 +160,7 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
           <div class="dos-columnas">
             <section class="tarjeta">
               <h2>Amenidades ({{ k.amenidades.length }})</h2>
-              <ul class="chips">@for (a of k.amenidades; track a.id) { <li>{{ a.nombre }} <small>· {{ a.categoria }}</small></li> }</ul>
+              <ul class="chips d-flex flex-wrap p-0">@for (a of k.amenidades; track a.id) { <li>{{ a.nombre }} <small>· {{ a.categoria }}</small></li> }</ul>
               <form class="fila" (ngSubmit)="crear('amenities', { nombre: nuevaAmenidad, categoria: nuevaCategoria })">
                 <label>Nombre <input name="na" [(ngModel)]="nuevaAmenidad" required /></label>
                 <label>Categoría <input name="nc" [(ngModel)]="nuevaCategoria" required /></label>
@@ -169,7 +169,7 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
             </section>
             <section class="tarjeta">
               <h2>Tipos de alojamiento</h2>
-              <ul class="chips">@for (t of k.tipos; track t.id) { <li>{{ t.nombre }}</li> }</ul>
+              <ul class="chips d-flex flex-wrap p-0">@for (t of k.tipos; track t.id) { <li>{{ t.nombre }}</li> }</ul>
               <p class="ayuda">Catálogo cerrado: los tipos más buscados en Ecuador.</p>
               <h2>Ciudades ({{ k.ciudades.length }})</h2>
               <form class="fila" (ngSubmit)="crearCiudad()" novalidate>
@@ -243,7 +243,7 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
             </tbody>
           </table>
         </div>
-        <nav class="paginacion">
+        <nav class="paginacion d-flex justify-content-center align-items-center gap-3">
           <button class="btn" type="button" (click)="paginaEventos(-1)" [disabled]="offset() === 0">Anterior</button>
           <span>{{ offset() + 1 }}–{{ offset() + filas().length }} de {{ total() }}</span>
           <button class="btn" type="button" (click)="paginaEventos(1)" [disabled]="offset() + 20 >= total()">Siguiente</button>

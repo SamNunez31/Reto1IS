@@ -21,12 +21,12 @@ import { ConfirmarComponent, ConfirmarService } from './shared/confirmar';
           }
           @if (u.rol === 'ADMIN') {
             <!-- El ADMIN no tiene "Mi perfil": su nombre es solo informativo -->
-            <span class="nav-usuario">
+            <span class="nav-usuario d-inline-flex align-items-center">
               <svg class="icono-usuario" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5Z"/></svg>
               {{ u.nombres }}
             </span>
           } @else {
-            <a class="nav-usuario" routerLink="/perfil" routerLinkActive="activo" title="Mi perfil" [attr.aria-label]="'Mi perfil: ' + u.nombres">
+            <a class="nav-usuario d-inline-flex align-items-center" routerLink="/perfil" routerLinkActive="activo" title="Mi perfil" [attr.aria-label]="'Mi perfil: ' + u.nombres">
               <svg class="icono-usuario" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5Z"/></svg>
               {{ u.nombres }}
             </a>

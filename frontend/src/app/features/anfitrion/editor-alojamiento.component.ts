@@ -145,7 +145,7 @@ const PASO_UNIDADES = 5;
         }
       </div>
 
-      <footer class="asistente-pie">
+      <footer class="asistente-pie d-flex justify-content-between gap-3 mt-4">
         <a class="btn" routerLink="/admin" [queryParams]="{ tab: 'alojamientos' }">Cancelar</a>
         <button class="btn" type="button" (click)="atras()" [disabled]="paso() === 0">Atrás</button>
         @if (paso() < pasos.length - 1) {

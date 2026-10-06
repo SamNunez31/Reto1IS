@@ -28,6 +28,8 @@
             ],
             "allowedCommonJsDependencies": ["leaflet"],
             "styles": [
+              "node_modules/bootstrap/dist/css/bootstrap-grid.min.css",
+              "node_modules/bootstrap/dist/css/bootstrap-utilities.min.css",
               "src/styles.css"
             ],
             "scripts": []
@@ -95,6 +97,8 @@
               }
             ],
             "styles": [
+              "node_modules/bootstrap/dist/css/bootstrap-grid.min.css",
+              "node_modules/bootstrap/dist/css/bootstrap-utilities.min.css",
               "src/styles.css"
             ],
             "scripts": []

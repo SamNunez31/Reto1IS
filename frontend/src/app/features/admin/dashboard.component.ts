@@ -144,7 +144,7 @@ function barra(x: number, y: number, w: number, base: number): string {
                   <text class="eje" [attr.x]="G.izq - 6" [attr.y]="y(t) + 4" text-anchor="end">{{ usdCorto(t) }}</text>
                 }
                 @for (m of meses(); track m.clave; let i = $index) {
-                  <g class="col">
+                  <g class="columna">
                     <title>{{ m.etiquetaLarga }}: {{ usd(m.volumen) }} · {{ plural(m.reservas, 'reserva') }}</title>
                     <rect class="hit" [attr.x]="xCol(i)" [attr.y]="G.arr" [attr.width]="anchoCol()" [attr.height]="base() - G.arr" />
                     <path class="dato" [attr.d]="barraMes(i, m.volumen)" />
@@ -223,8 +223,8 @@ function barra(x: number, y: number, w: number, base: number): string {
     .grafico-mes .valor { fill: var(--c-texto); font-size: 14px; font-weight: 700; }
     .grafico-mes .dato { fill: var(--c-primario); }
     .grafico-mes .hit { fill: transparent; }
-    .grafico-mes .col:hover .dato { fill: var(--c-primario-osc); }
-    .grafico-mes .col:hover .hit { fill: var(--c-primario-suave); opacity: .5; }
+    .grafico-mes .columna:hover .dato { fill: var(--c-primario-osc); }
+    .grafico-mes .columna:hover .hit { fill: var(--c-primario-suave); opacity: .5; }
     .datos-tabla { margin-top: .5rem; }
     .datos-tabla summary { cursor: pointer; color: var(--c-primario); font-weight: 600; }
     .vacio { color: var(--c-suave); }

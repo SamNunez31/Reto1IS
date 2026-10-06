@@ -36,7 +36,7 @@ interface Opcion {
       <a routerLink="/" class="volver">← Volver a la búsqueda</a>
       <header class="cabecera-detalle">
         <h1>{{ a.name }} <app-estrellas [n]="a.stars" /></h1>
-        <p class="meta cabecera-calif">
+        <p class="meta cabecera-calif d-flex align-items-center flex-wrap">
           <app-calificacion [nota]="a.rating.score" [resenas]="a.rating.reviews" />
           <span>· {{ a.type }} · {{ a.city.name }}, {{ a.city.province }}</span>
         </p>
@@ -68,7 +68,7 @@ interface Opcion {
 
           <section class="tarjeta">
             <h2>Lo que ofrece</h2>
-            <ul class="chips">
+            <ul class="chips d-flex flex-wrap p-0">
               @for (f of a.facilities ?? []; track f.id) { <li>{{ f.name }}</li> } @empty { <li>Sin comodidades registradas</li> }
             </ul>
           </section>
@@ -92,7 +92,7 @@ interface Opcion {
             </h2>
             @for (r of resenas(); track r.id) {
               <article class="resena">
-                <p class="resena-cabecera"><strong>{{ r.author }}</strong> <app-calificacion [nota]="r.score" [sinConteo]="true" [chica]="true" />
+                <p class="resena-cabecera d-flex align-items-center flex-wrap gap-2"><strong>{{ r.author }}</strong> <app-calificacion [nota]="r.score" [sinConteo]="true" [chica]="true" />
                   <small>{{ fecha(r.created_at) }}</small></p>
                 @if (r.comment) { <p class="texto">{{ r.comment }}</p> }
                 @if (r.host_reply) { <p class="respuesta">Respuesta del alojamiento: {{ r.host_reply }}</p> }
@@ -105,9 +105,9 @@ interface Opcion {
         <!-- Tarjeta de disponibilidad -->
         <aside class="tarjeta reserva-lateral tarjeta-reserva" aria-label="Disponibilidad y precios">
           @if (a.price_from) { <p class="desde-precio"><strong>{{ a.price_from | currency: 'USD' }}</strong> <span>/ noche</span></p> }
-          <div class="fechas-reserva">
-            <label>Entrada <input type="date" [ngModel]="checkin()" (ngModelChange)="cambiarEntrada($event)" [min]="hoy" /></label>
-            <label>Salida <input type="date" [ngModel]="checkout()" (ngModelChange)="checkout.set($event)" [min]="checkin()" /></label>
+          <div class="fechas-reserva row g-2">
+            <label class="col-6">Entrada <input type="date" [ngModel]="checkin()" (ngModelChange)="cambiarEntrada($event)" [min]="hoy" /></label>
+            <label class="col-6">Salida <input type="date" [ngModel]="checkout()" (ngModelChange)="checkout.set($event)" [min]="checkin()" /></label>
           </div>
           <details class="huespedes-plegable" [open]="huespedesAbierto()" (toggle)="huespedesAbierto.set($any($event.target).open)">
             <summary><span class="contador-etiqueta">Huéspedes</span> {{ resumen() }}</summary>
@@ -144,18 +144,18 @@ interface Opcion {
                     @if (esAdmin()) {
                       <p class="ayuda">El administrador no puede reservar.</p>
                     } @else {
-                      <button class="btn btn-primario ancho-total" type="button" (click)="reservar(p)">Reservar</button>
+                      <button class="btn btn-primario ancho-total w-100" type="button" (click)="reservar(p)">Reservar</button>
                     }
                   } @else {
                     <p class="aviso-capacidad" [id]="'motivo-' + $index">{{ o.motivo }}</p>
                     @if (o.accion; as ac) { <button class="btn btn-chico" type="button" (click)="habitaciones.set(ac.habitaciones)">{{ ac.texto }}</button> }
-                    <button class="btn btn-primario ancho-total" type="button" disabled [attr.aria-describedby]="'motivo-' + $index">Reservar</button>
+                    <button class="btn btn-primario ancho-total w-100" type="button" disabled [attr.aria-describedby]="'motivo-' + $index">Reservar</button>
                   }
                 </article>
               } @empty {
                 <app-vacio texto="No hay habitaciones disponibles para esas fechas." />
               }
-              <p class="ayuda centro">Aún no se te cobrará nada.</p>
+              <p class="ayuda centro text-center d-block">Aún no se te cobrará nada.</p>
             }
           }
         </aside>

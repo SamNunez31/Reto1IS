@@ -87,7 +87,7 @@ export function motivoBusqueda(
         <button class="btn btn-primario btn-buscar" type="submit" [disabled]="form.invalid || cargando()">Buscar</button>
       </div>
 
-      <div class="buscador-pie">
+      <div class="buscador-pie d-flex justify-content-between align-items-center flex-wrap gap-3 mt-2">
         <button class="btn-filtros" type="button" aria-controls="mas-filtros" [attr.aria-expanded]="masFiltros()" (click)="masFiltros.set(!masFiltros())">
           Más filtros
           @if (filtrosActivos()) { <span class="contador" [attr.aria-label]="filtrosActivos() + ' activos'">{{ filtrosActivos() }}</span> }
@@ -143,7 +143,7 @@ export function motivoBusqueda(
       </div>
     } @else {
       @if (resultados().length) {
-        <div class="resultados-cabecera">
+        <div class="resultados-cabecera d-flex justify-content-between align-items-baseline flex-wrap gap-3">
           <h2>Alojamientos disponibles</h2>
           <p>{{ resumenResultados() }}</p>
         </div>
@@ -169,7 +169,7 @@ export function motivoBusqueda(
         }
       </div>
       @if (resultados().length) {
-        <nav class="paginacion" aria-label="Paginación">
+        <nav class="paginacion d-flex justify-content-center align-items-center gap-3" aria-label="Paginación">
           <button class="btn" type="button" (click)="anterior()" [disabled]="!cursores().length">Anterior</button>
           <span>Página {{ cursores().length + 1 }}</span>
           <button class="btn" type="button" (click)="siguiente()" [disabled]="!siguientePagina()">Siguiente</button>

@@ -122,7 +122,7 @@ const vCorreo: ValidatorFn = (c) => (tipoDe(c) === 'CONSUMIDOR_FINAL' ? null : v
 
           <!-- 2. Pago: tarjeta de crédito o efectivo -->
           @if (paso() === 'pago') {
-            <div class="pago-cabecera">
+            <div class="pago-cabecera d-flex justify-content-between align-items-baseline flex-wrap gap-3">
               <h2>Pago</h2>
               <button type="button" class="btn-enlace" (click)="irAFactura()">Editar datos de la factura</button>
             </div>
@@ -176,7 +176,7 @@ const vCorreo: ValidatorFn = (c) => (tipoDe(c) === 'CONSUMIDOR_FINAL' ? null : v
                 <div class="input-marca">
                   <input id="tj-numero" formControlName="numero" inputmode="numeric" autocomplete="cc-number" placeholder="1234 5678 9012 3456"
                          [maxlength]="23" (beforeinput)="soloDigitos($event)" (input)="formatoNumero($event)" [attr.aria-invalid]="mal(tarjeta.controls.numero)" aria-describedby="tj-marca msg-tj-numero" />
-                  <span id="tj-marca" class="marca-tarjeta" [class.visible]="marca() !== 'otra'" aria-live="polite">{{ marca() !== 'otra' ? nombreMarca[marca()] : '' }}</span>
+                  <span id="tj-marca" class="marca-tarjeta" [class.con-marca]="marca() !== 'otra'" aria-live="polite">{{ marca() !== 'otra' ? nombreMarca[marca()] : '' }}</span>
                 </div>
                 <app-campo-mensaje [control]="tarjeta.controls.numero" id="msg-tj-numero" [mostrarOk]="false" />
               </div>
