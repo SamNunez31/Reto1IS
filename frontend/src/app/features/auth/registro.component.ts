@@ -11,6 +11,10 @@ import {
   aplicarErroresApi, LIMITES, normalizarEmail, normalizarNombre, revisarYEnfocar, vClave, vEmail, vIgualA, vNombre,
 } from '../../shared/validadores';
 
+/** 409 del registro: se muestra bajo el campo correo con el texto del backend ("Ya existe una cuenta con este correo"). */
+export const MENSAJE_CORREO_DUPLICADO = 'Ya existe una cuenta con este correo';
+export const mensajeCorreoDuplicado = (detalle?: string): string => (detalle?.trim() ? detalle.trim() : MENSAJE_CORREO_DUPLICADO);
+
 @Component({
   selector: 'app-registro',
   imports: [ReactiveFormsModule, RouterLink, AlertaErrorComponent, CampoMensajeComponent, RequisitosClaveComponent, OjoClaveComponent, FiltroDirective],
@@ -62,9 +66,6 @@ import {
         </div>
 
         <button class="btn btn-primario" type="submit" [disabled]="enviando() || form.invalid">{{ enviando() ? 'Registrando…' : 'Registrarme' }}</button>
-        @if (form.invalid && !enviando()) {
-          <p class="ayuda">Completa todos los campos para crear tu cuenta. <button type="button" class="btn-enlace" (click)="enviar()">Ver qué falta</button></p>
-        }
       </form>
       <p class="pie">¿Ya tienes cuenta? <a routerLink="/login">Inicia sesión</a></p>
     </section>
@@ -118,7 +119,7 @@ export class RegistroComponent {
         this.enviando.set(false);
         const error = leerError(e);
         if (error.status === 409) {
-          this.form.controls.email.setErrors({ api: 'Este correo ya está registrado. ¿Quieres iniciar sesión?' });
+          this.form.controls.email.setErrors({ api: mensajeCorreoDuplicado(error.mensaje) });
           this.form.controls.email.markAsTouched();
         } else if (error.status !== 400 || !aplicarErroresApi(this.form, error.campos)) {
           this.errorGeneral.set(error);
