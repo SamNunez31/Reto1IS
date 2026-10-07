@@ -1,11 +1,13 @@
 import { Component, inject, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/services/auth.service';
 import { ConfirmarComponent, ConfirmarService } from './shared/confirmar';
+import { LoginModalComponent } from './features/auth/login-modal.component';
+import { LoginModalService } from './core/services/login-modal.service';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ConfirmarComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ConfirmarComponent, LoginModalComponent],
   template: `
     <a class="saltar" href="#contenido">Saltar al contenido</a>
     <header class="barra">
@@ -35,7 +37,7 @@ import { ConfirmarComponent, ConfirmarService } from './shared/confirmar';
           }
           <button class="btn-salir" type="button" (click)="salir()">Salir</button>
         } @else {
-          <a routerLink="/login" routerLinkActive="activo">Ingresar</a>
+          <button class="nav-boton" type="button" (click)="abrirLogin()" aria-haspopup="dialog">Iniciar sesión</button>
           <a routerLink="/registro" class="btn btn-primario">Crear cuenta</a>
         }
       </nav>
@@ -49,12 +51,20 @@ import { ConfirmarComponent, ConfirmarService } from './shared/confirmar';
       <p class="pie-aviso"><a class="pie-enlace" routerLink="/observabilidad">Observabilidad</a></p>
     </footer>
     <app-confirmar />
+    <app-login-modal />
   `,
 })
 export class AppComponent {
   readonly auth = inject(AuthService);
   readonly menu = signal(false);
   private readonly confirmar = inject(ConfirmarService);
+  private readonly loginModal = inject(LoginModalService);
+  private readonly router = inject(Router);
+
+  /** Abre la ventana de inicio de sesión; al entrar, vuelve a la página actual (desde el inicio, a la de siempre según el rol). */
+  abrirLogin(): void {
+    this.loginModal.abrir(this.router.url === '/' ? null : this.router.url);
+  }
 
   /** Cierra la sesión solo si el usuario lo confirma en el diálogo común. */
   async salir(): Promise<void> {

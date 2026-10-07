@@ -9,6 +9,7 @@ import { ErrorVista, leerError } from '../../core/services/api-base';
 import { AuthService } from '../../core/services/auth.service';
 import { CatalogoService } from '../../core/services/catalogo.service';
 import { ReservasService } from '../../core/services/reservas.service';
+import { LoginModalService } from '../../core/services/login-modal.service';
 import { CalificacionComponent, ContadorComponent } from '../../shared/calificacion';
 import { fechaMasDias, hoyEcuador, motivoFechas } from '../../shared/fechas';
 import { fechaLarga, noches, plural, textoHuespedes, tituloPolitica } from '../../shared/textos';
@@ -172,6 +173,7 @@ export class DetalleComponent implements OnInit {
   private readonly catalogo = inject(CatalogoService);
   private readonly reservas = inject(ReservasService);
   private readonly auth = inject(AuthService);
+  private readonly loginModal = inject(LoginModalService);
   private readonly router = inject(Router);
   private readonly ruta = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -333,6 +335,12 @@ export class DetalleComponent implements OnInit {
     });
     // ?demo=1 se conserva para mostrar la ayuda de tarjetas de prueba en el pago
     const demo = this.ruta.snapshot.queryParamMap.get('demo') === '1';
-    this.router.navigate(['/reservar'], demo ? { queryParams: { demo: 1 } } : {});
+    const destino = demo ? '/reservar?demo=1' : '/reservar';
+    // Sin sesión: se pide aquí mismo, en la ventana de inicio de sesión, y al entrar se continúa a la reserva
+    if (!this.auth.autenticado()) {
+      this.loginModal.abrir(destino);
+      return;
+    }
+    this.router.navigateByUrl(destino);
   }
 }

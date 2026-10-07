@@ -534,6 +534,20 @@ input[aria-invalid='true']:focus, select[aria-invalid='true']:focus { box-shadow
 .garantia { background: var(--c-primario-suave); color: var(--c-primario-osc); border-radius: var(--radio-s); padding: .5rem .7rem; font-size: .9rem; }
 .btn-enlace.discreto:hover { color: var(--c-peligro); }
 .dialogo form label { color: var(--c-texto); }
+/* Ventana de inicio de sesión: mismo diálogo, fondo oscurecido y desenfocado */
+.dialogo-login { width: min(440px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; }
+.dialogo-login::backdrop { background: rgb(7 30 28 / 55%); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+.dialogo-login .dialogo-cuerpo { position: relative; padding: 1.6rem 1.5rem 1.4rem; }
+.dialogo-cerrar { position: absolute; top: .6rem; right: .6rem; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 50%;
+  background: transparent; color: var(--gris-700); font-size: 1.6rem; line-height: 1; cursor: pointer; }
+.dialogo-cerrar:hover { background: var(--gris-100); color: var(--c-texto); }
+.login-antetitulo { text-transform: uppercase; letter-spacing: .14em; font-size: .72rem; font-weight: 800; color: var(--c-acento) !important; margin: 0 2.5rem .35rem 0 !important; }
+.dialogo-login h2 { font-size: clamp(1.6rem, 6vw, 2rem); margin: 0 0 .25rem; }
+.login-subtitulo { margin: 0 0 1rem !important; }
+.login-acciones { display: grid; gap: .55rem; margin-top: .4rem; }
+.login-acciones .btn { width: 100%; }
+.nav-boton { background: none; border: 0; padding: .25rem 0; font: inherit; font-weight: 600; font-size: .95rem; color: var(--gris-700); cursor: pointer; border-bottom: 2px solid transparent; }
+.nav-boton:hover { color: var(--c-primario); }
 .galeria .principal.sin-foto { aspect-ratio: 16 / 9; border-radius: var(--radio); }
 .pie-tarjeta.solo-precio { justify-content: flex-end; }
 .precio-desde strong, .precio-desde span { white-space: nowrap; }
