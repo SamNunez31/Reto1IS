@@ -10,7 +10,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { CatalogoService } from '../../core/services/catalogo.service';
 import { ReservasService } from '../../core/services/reservas.service';
 import { CalificacionComponent, ContadorComponent } from '../../shared/calificacion';
-import { fechaMasDias } from '../../shared/fechas';
+import { fechaMasDias, hoyEcuador, motivoFechas } from '../../shared/fechas';
 import { fechaLarga, noches, plural, textoHuespedes, tituloPolitica } from '../../shared/textos';
 import { AlertaErrorComponent, CargandoComponent, EstrellasComponent, VacioComponent } from '../../shared/ui';
 import { lineasTramos } from '../anfitrion/politicas.service';
@@ -106,8 +106,12 @@ interface Opcion {
         <aside class="tarjeta reserva-lateral tarjeta-reserva" aria-label="Disponibilidad y precios">
           @if (a.price_from) { <p class="desde-precio"><strong>{{ a.price_from | currency: 'USD' }}</strong> <span>/ noche</span></p> }
           <div class="fechas-reserva row g-2">
-            <label class="col-6">Entrada <input type="date" [ngModel]="checkin()" (ngModelChange)="cambiarEntrada($event)" [min]="hoy" /></label>
-            <label class="col-6">Salida <input type="date" [ngModel]="checkout()" (ngModelChange)="checkout.set($event)" [min]="checkin()" /></label>
+            <label class="col-6">Entrada <input type="date" [ngModel]="checkin()" (ngModelChange)="cambiarEntrada($event)" [min]="hoy"
+                   [attr.aria-invalid]="!!fechas().entrada" [attr.aria-describedby]="fechas().entrada ? 'err-det-checkin' : null" />
+              @if (fechas().entrada) { <small class="msg-fecha" id="err-det-checkin" role="alert">{{ fechas().entrada }}</small> }</label>
+            <label class="col-6">Salida <input type="date" [ngModel]="checkout()" (ngModelChange)="checkout.set($event)" [min]="checkin()"
+                   [attr.aria-invalid]="!!fechas().salida" [attr.aria-describedby]="fechas().salida ? 'err-det-checkout' : null" />
+              @if (fechas().salida) { <small class="msg-fecha" id="err-det-checkout" role="alert">{{ fechas().salida }}</small> }</label>
           </div>
           <details class="huespedes-plegable" [open]="huespedesAbierto()" (toggle)="huespedesAbierto.set($any($event.target).open)">
             <summary><span class="contador-etiqueta">Huéspedes</span> {{ resumen() }}</summary>
@@ -117,7 +121,6 @@ interface Opcion {
           </details>
           <p class="meta resumen-estadia">{{ resumenEstadia() }}</p>
 
-          @if (errorFechas()) { <p class="aviso-guardado error" role="alert">✗ {{ errorFechas() }}</p> }
           <app-alerta-error [error]="errorDisp()" />
           <div aria-live="polite">
             @if (cotizando()) { <app-cargando texto="Actualizando precios…" /> }
@@ -172,7 +175,8 @@ export class DetalleComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly ruta = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
-  readonly hoy = fechaMasDias(0);
+  /** Hoy en Ecuador (misma referencia que el backend). */
+  readonly hoy = hoyEcuador();
   readonly plural = plural;
   readonly titulo = tituloPolitica;
   readonly lineas = lineasTramos;
@@ -202,12 +206,9 @@ export class DetalleComponent implements OnInit {
     const n = noches(this.checkin(), this.checkout());
     return n > 0 ? `${fechaLarga(this.checkin())} → ${fechaLarga(this.checkout())} · ${plural(n, 'noche')}` : '';
   });
-  readonly errorFechas = computed(() => {
-    if (!this.checkin() || !this.checkout()) return 'Elige las fechas de entrada y salida.';
-    if (this.checkin() < this.hoy) return 'La entrada no puede ser en el pasado.';
-    if (noches(this.checkin(), this.checkout()) < 1) return 'La salida debe ser al menos un día después de la entrada.';
-    return '';
-  });
+  /** Error de cada campo de fecha (se muestra bajo el campo). */
+  readonly fechas = computed(() => motivoFechas(this.checkin(), this.checkout(), this.hoy));
+  readonly errorFechas = computed(() => this.fechas().entrada || this.fechas().salida);
   readonly estanciaInvalida = computed(() => {
     const p = this.aloj()?.policies;
     const n = noches(this.checkin(), this.checkout());

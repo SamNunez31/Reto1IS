@@ -9,7 +9,9 @@ describe('Búsqueda: validación de criterios', () => {
   });
 
   it('rechaza fechas pasadas o salida no posterior a la entrada', () => {
-    expect(motivoBusqueda({ ...base, checkin: '2026-10-01' }, hoy)).toContain('pasado');
+    expect(motivoBusqueda({ ...base, checkin: '2026-10-01' }, hoy)).toBe('La fecha de entrada no puede ser anterior a hoy.');
+    expect(motivoBusqueda({ ...base, checkin: '1998-11-12', checkout: '1998-11-13' }, hoy)).toContain('anterior a hoy');
+    expect(motivoBusqueda({ ...base, checkin: hoy, checkout: '2026-10-07' }, hoy)).toBe('');
     expect(motivoBusqueda({ ...base, checkout: '2026-10-20' }, hoy)).toContain('salida');
     expect(motivoBusqueda({ ...base, checkout: '2026-10-19' }, hoy)).toContain('salida');
   });

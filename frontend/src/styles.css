@@ -232,6 +232,7 @@ input[aria-invalid='true']:focus, select[aria-invalid='true']:focus { box-shadow
 .btn-filtros .flecha { transition: transform var(--transicion); display: inline-block; }
 .btn-filtros[aria-expanded='true'] .flecha { transform: rotate(180deg); }
 .aviso-form { color: var(--c-peligro); font-size: .85rem; font-weight: 600; margin: 0; }
+.msg-fecha { display: block; color: var(--c-peligro); font-size: .78rem; font-weight: 600; line-height: 1.25; margin-top: .2rem; text-transform: none; letter-spacing: 0; }
 .mas-filtros { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0 1rem; padding: 1rem .9rem .2rem; }
 
 .resultados-cabecera { margin: 0 0 1.25rem; }
