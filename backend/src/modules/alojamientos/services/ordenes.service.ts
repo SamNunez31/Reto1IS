@@ -107,10 +107,12 @@ export class OrdenesService {
       }
       if (comprador) {
         // La factura (simulada) se emitió dentro de fn_crear_orden con los datos del perfil: se reemplazan por los del pago.
+        // Solo la emitida en ESTA transacción (emitida_en = now()): reenviar un preview ya usado con otra
+        // Idempotency-Key devuelve la orden existente y no debe reescribir el comprador de una factura ya emitida.
         await q(
           `UPDATE factura SET comprador_nombre = $2, comprador_tipo_documento = $3::tipo_documento,
                   comprador_identificacion = $4, comprador_email = $5
-            WHERE reserva_id = $1 AND estado = 'EMITIDA'`,
+            WHERE reserva_id = $1 AND estado = 'EMITIDA' AND emitida_en = now()`,
           [fila.id, comprador.nombre, comprador.tipo, comprador.identificacion, comprador.email],
         );
       }
