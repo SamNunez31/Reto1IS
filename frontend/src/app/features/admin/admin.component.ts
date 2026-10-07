@@ -163,7 +163,7 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
           @if (nuevoUsuario.nombres && problemaUsuario().nombres; as p) { <p class="msg-campo msg-error" id="msg-u-nombres" role="alert"><span aria-hidden="true">✗</span> {{ p }}</p> }
           @if (nuevoUsuario.apellidos && problemaUsuario().apellidos; as p) { <p class="msg-campo msg-error" id="msg-u-apellidos" role="alert"><span aria-hidden="true">✗</span> {{ p }}</p> }
           @if (nuevoUsuario.password && problemaUsuario().password; as p) { <p class="msg-campo msg-error" id="msg-u-password" role="alert"><span aria-hidden="true">✗</span> {{ p }}</p> }
-          <button class="btn" type="submit" [disabled]="hayProblemaUsuario()">Crear usuario</button>
+          <button class="btn" type="submit" [disabled]="hayProblemaUsuario() || creandoUsuario()">{{ creandoUsuario() ? 'Creando…' : 'Crear usuario' }}</button>
         </form>
         <form class="fila" (ngSubmit)="ir('usuarios')"><label>Buscar <input name="q" [(ngModel)]="busqueda" /></label><button class="btn" type="submit">Buscar</button></form>
         <div class="tabla-scroll tarjeta">
@@ -344,6 +344,8 @@ export class AdminComponent implements OnInit {
   imp = { nombre: '', tipo: 'IVA', porcentaje: 8 as number | null, vigente_desde: '', vigente_hasta: '' };
   tocadoImp = { nombre: false, porcentaje: false, desde: false };
   nuevoUsuario = { email: '', nombres: '', apellidos: '', password: '' };
+  /** Evita dobles envíos (doble clic / Enter) mientras el servidor procesa el alta. */
+  readonly creandoUsuario = signal(false);
 
   ngOnInit(): void {
     // ?tab=alojamientos al volver del editor
@@ -527,18 +529,24 @@ export class AdminComponent implements OnInit {
   }
 
   crearUsuario(): void {
-    if (this.hayProblemaUsuario()) return;
+    if (this.hayProblemaUsuario() || this.creandoUsuario()) return;
     const u = this.nuevoUsuario;
     this.ok.limpiar();
+    this.error.set(null);
+    this.creandoUsuario.set(true);
     this.api
       .crearUsuario({ email: normalizarEmail(u.email), nombres: normalizarNombre(u.nombres), apellidos: normalizarNombre(u.apellidos), password: u.password })
       .subscribe({
         next: () => {
+          this.creandoUsuario.set(false);
           this.ok.mostrar('Usuario creado');
           this.nuevoUsuario = { email: '', nombres: '', apellidos: '', password: '' };
           this.ir('usuarios');
         },
-        error: (e) => this.error.set(leerError(e)), // el formulario conserva lo escrito
+        error: (e) => {
+          this.creandoUsuario.set(false);
+          this.error.set(leerError(e)); // el formulario conserva lo escrito
+        },
       });
   }
 
