@@ -10,16 +10,16 @@ import { ConfirmarComponent, ConfirmarService } from './shared/confirmar';
     <a class="saltar" href="#contenido">Saltar al contenido</a>
     <header class="barra">
       <a routerLink="/" class="marca" aria-label="Posada EC, inicio">Posada<span>EC</span></a>
-      <button class="menu-btn" type="button" (click)="menu.set(!menu())" [attr.aria-expanded]="menu()" aria-controls="nav">Menú</button>
-      <!-- Clic en un enlace del menú móvil lo cierra; los enlaces ya son accesibles con teclado -->
-      <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
-      <nav id="nav" [class.abierto]="menu()" (click)="menu.set(false)" aria-label="Principal">
-        <a routerLink="/" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">Buscar</a>
+      <button #menuBtn class="menu-btn" type="button" (click)="menu.set(!menu())" [attr.aria-expanded]="menu()" aria-controls="nav">Menú</button>
+      <!-- Clic en un enlace del menú móvil lo cierra y Esc también; los enlaces ya son accesibles con teclado -->
+      <!-- eslint-disable-next-line @angular-eslint/template/interactive-supports-focus -->
+      <nav id="nav" [class.abierto]="menu()" (click)="menu.set(false)" (keydown.escape)="cerrarMenu(menuBtn)" aria-label="Principal">
+        <a routerLink="/" routerLinkActive="activo" ariaCurrentWhenActive="page" [routerLinkActiveOptions]="{ exact: true }">Buscar</a>
         @if (auth.usuario(); as u) {
           @if (u.rol === 'ADMIN') {
-            <a routerLink="/admin" routerLinkActive="activo">Administración</a>
+            <a routerLink="/admin" routerLinkActive="activo" ariaCurrentWhenActive="page">Administración</a>
           } @else {
-            <a routerLink="/mis-reservas" routerLinkActive="activo">Mis reservas</a>
+            <a routerLink="/mis-reservas" routerLinkActive="activo" ariaCurrentWhenActive="page">Mis reservas</a>
           }
           @if (u.rol === 'ADMIN') {
             <!-- El ADMIN no tiene "Mi perfil": su nombre es solo informativo -->
@@ -28,19 +28,19 @@ import { ConfirmarComponent, ConfirmarService } from './shared/confirmar';
               {{ u.nombres }}
             </span>
           } @else {
-            <a class="nav-usuario d-inline-flex align-items-center" routerLink="/perfil" routerLinkActive="activo" title="Mi perfil" [attr.aria-label]="'Mi perfil: ' + u.nombres">
+            <a class="nav-usuario d-inline-flex align-items-center" routerLink="/perfil" routerLinkActive="activo" ariaCurrentWhenActive="page" title="Mi perfil" [attr.aria-label]="'Mi perfil: ' + u.nombres">
               <svg class="icono-usuario" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5Z"/></svg>
               {{ u.nombres }}
             </a>
           }
           <button class="btn-salir" type="button" (click)="salir()">Salir</button>
         } @else {
-          <a routerLink="/login" routerLinkActive="activo">Ingresar</a>
+          <a routerLink="/login" routerLinkActive="activo" ariaCurrentWhenActive="page">Ingresar</a>
           <a routerLink="/registro" class="btn btn-primario">Crear cuenta</a>
         }
       </nav>
     </header>
-    <main id="contenido" class="contenedor">
+    <main id="contenido" class="contenedor" tabindex="-1">
       <router-outlet />
     </main>
     <footer class="pie-pagina">
@@ -54,6 +54,13 @@ import { ConfirmarComponent, ConfirmarService } from './shared/confirmar';
 export class AppComponent {
   readonly auth = inject(AuthService);
   readonly menu = signal(false);
+
+  /** Esc en el menú móvil abierto: lo cierra y devuelve el foco al botón "Menú". */
+  cerrarMenu(boton: HTMLButtonElement): void {
+    if (!this.menu()) return;
+    this.menu.set(false);
+    boton.focus();
+  }
   private readonly confirmar = inject(ConfirmarService);
 
   /** Cierra la sesión solo si el usuario lo confirma en el diálogo común. */

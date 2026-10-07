@@ -27,7 +27,7 @@
 |---|---|---|---|
 | Búsqueda | `POST /api/v1/search` (público, `X-Device-Fingerprint` obligatorio) | `fn_buscar_alojamientos` + `alojamiento.codigo`; cursor opaco base64url | ✅ probado |
 | Disponibilidad | `POST /availability` | `fn_cotizar` por unidad activa + cupo ≥ habitaciones; `politica_cancelacion_regla` | ✅ probado |
-| Disponibilidad múltiple | `POST /bulk-availability` | igual, producto más barato por alojamiento | ✅ (prueba pendiente, ver PENDIENTES) |
+| Disponibilidad múltiple | `POST /bulk-availability` | igual, producto más barato por alojamiento | ✅ (prueba pendiente) |
 | Detalles | `POST /details` | `alojamiento`, `v_alojamiento_resumen`, `amenidad`, `imagen_alojamiento`, `unidad_alojamiento` | ✅ |
 | Cambios | `POST /details/changes` (`alojamientos:read`) | `alojamiento.updated_at` | ✅ |
 | Cadenas | `POST /chains` | — (devuelve `[]`) | ✅ |
@@ -41,7 +41,7 @@
 | Cancelar | `POST /orders/{orderId}/cancel` (`cancel`, Idempotency-Key) | `fn_cancelar_reserva` → penalidad/reembolso | ✅ probado |
 | Webhooks | `GET/POST /webhooks`, `DELETE /webhooks/{id}` (`webhooks`) | `webhook_suscripcion`, `webhook_evento` | ✅ CRUD (entrega = Reto 2) |
 
-**Supuestos** (detalle en `SUPUESTOS.md`): sin cadenas hoteleras; `meal_plan` no soportado; solo `USD`, `country = "ec"`, idioma `es`; OAuth2 simplificado (el JWT lo emite `/auth/login`, con claim `scope`); pagos y facturas **simulados**; `product_id` opaco (`base64url(unidad|checkin|checkout)`) porque el preview del contrato no trae fechas; prefijo `/api/v1` en lugar de los servidores del YAML; webhooks sin entrega.
+**Supuestos**: sin cadenas hoteleras; `meal_plan` no soportado; solo `USD`, `country = "ec"`, idioma `es`; OAuth2 simplificado (el JWT lo emite `/auth/login`, con claim `scope`); pagos y facturas **simulados**; `product_id` opaco (`base64url(unidad|checkin|checkout)`) porque el preview del contrato no trae fechas; prefijo `/api/v1` en lugar de los servidores del YAML; webhooks sin entrega.
 
 **Errores.** Toda la API responde `application/problem+json` con el esquema `ProblemDetails` (`type, title, status, detail, code, invalidParams`). Las excepciones de la BD (`RAISE EXCEPTION 'CODIGO: …'`) se traducen: `SIN_DISPONIBILIDAD`/`UNIDAD_INACTIVA` → 409 `ROOM_NO_LONGER_AVAILABLE`; `PRECIO_CAMBIO`/`PREVIEW_EXPIRADO` → 409 `PRICE_CHANGED` + `Retry-After`; `CAPACIDAD_EXCEDIDA`/`FECHAS_INVALIDAS`/`ESTANCIA_INVALIDA`/`FECHA_PASADA` → 400 `VALIDATION_FAILED` + `invalidParams`; `TRANSICION_INVALIDA`/`ESTADO_INVALIDO` → 409 `CANCELLATION_NOT_ALLOWED`; `MODIFICACION_NO_PERMITIDA` → 409 `BOOKING_NOT_CONFIRMED`; `AUTORESERVA`/`HUESPED_INVALIDO` → 403; rate limit → 429 `RATE_LIMIT_EXCEEDED` + `Retry-After`. Nunca se expone SQL ni stack.
 
@@ -295,7 +295,7 @@ Resultado de `npm audit --omit=dev` (dependencias que llegan a producción) al 2
 
 (Con dependencias de desarrollo incluidas salen 30 y 40; esas no se despliegan: CLI, Karma, servidor de desarrollo.)
 
-**Por qué no se actualizan ahora.** El arreglo de 12 de los 15 avisos del backend y de los 7 del frontend exige un **salto de versión mayor**: NestJS 10 → 11/12 (`@nestjs/core`, `platform-express`, `swagger`, `config`, `schedule`, `typeorm`, `throttler`) y Angular 19 → 21. Son migraciones con cambios incompatibles (Express 5, nuevas APIs de NestJS, control flow y builders de Angular) que requieren reprobar todo el contrato a días de la entrega. No se usa `npm audit fix --force`. Los 3 restantes del backend (`@nestjs/common`, `qs`, `file-type`) tienen arreglo sin versión mayor y quedan en `PENDIENTES.md` para aplicarlos con `npm audit fix` (sin `--force`) y volver a correr build + `contract:check`.
+**Por qué no se actualizan ahora.** El arreglo de 12 de los 15 avisos del backend y de los 7 del frontend exige un **salto de versión mayor**: NestJS 10 → 11/12 (`@nestjs/core`, `platform-express`, `swagger`, `config`, `schedule`, `typeorm`, `throttler`) y Angular 19 → 21. Son migraciones con cambios incompatibles (Express 5, nuevas APIs de NestJS, control flow y builders de Angular) que requieren reprobar todo el contrato a días de la entrega. No se usa `npm audit fix --force`. Los 3 restantes del backend (`@nestjs/common`, `qs`, `file-type`) tienen arreglo sin versión mayor y quedan pendientes para aplicarlos con `npm audit fix` (sin `--force`) y volver a correr build + `contract:check`.
 
 **Por qué el riesgo es bajo en este prototipo.**
 

@@ -154,7 +154,7 @@ export function motivoBusqueda(
         @for (a of resultados(); track a.id) {
           <a class="tarjeta-aloj" [routerLink]="['/alojamientos', a.id]">
             <div class="tarjeta-foto">
-              <img [src]="a.cover_photo || 'https://placehold.co/600x400?text=Sin+foto'" [alt]="'Foto de ' + a.name" loading="lazy" />
+              <img [src]="a.cover_photo || 'https://placehold.co/600x400?text=Sin+foto'" alt="" loading="lazy" />
               <span class="tarjeta-tipo">{{ a.type }}</span>
             </div>
             <div class="cuerpo">

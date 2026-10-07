@@ -44,7 +44,7 @@ export class VacioComponent {
 
 @Component({
   selector: 'app-estrellas',
-  template: `@if (n(); as v) {<span class="estrellas" [attr.aria-label]="v + ' estrellas'">{{ '★'.repeat(v) }}</span>}`,
+  template: `@if (n(); as v) {<span class="estrellas" role="img" [attr.aria-label]="v === 1 ? '1 estrella' : v + ' estrellas'">{{ '★'.repeat(v) }}</span>}`,
 })
 export class EstrellasComponent {
   readonly n = input<number | null>(null);

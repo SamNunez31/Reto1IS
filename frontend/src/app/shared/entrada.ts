@@ -1,4 +1,4 @@
-import { Directive, ElementRef, forwardRef, HostListener, inject, input } from '@angular/core';
+import { Directive, ElementRef, forwardRef, HostAttributeToken, HostListener, inject, input } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
 /*
@@ -74,12 +74,14 @@ export function bloquearNoDigitos(ev: InputEvent): void {
 @Directive({
   selector: 'input[appFiltro]',
   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => FiltroDirective), multi: true }],
-  host: { '[attr.inputmode]': 'modoTeclado()', autocomplete: 'off' },
+  // autocomplete: respeta el del campo (given-name, family-name, organization…); 'off' solo si el campo no declara uno
+  host: { '[attr.inputmode]': 'modoTeclado()', '[attr.autocomplete]': 'autocompletar' },
 })
 export class FiltroDirective implements ControlValueAccessor {
   readonly appFiltro = input.required<TipoEntrada>();
   readonly decimales = input(2);
   private readonly el = inject<ElementRef<HTMLInputElement>>(ElementRef).nativeElement;
+  readonly autocompletar = inject(new HostAttributeToken('autocomplete'), { optional: true }) ?? 'off';
   private alCambiar: (v: unknown) => void = () => undefined;
   private alTocar: () => void = () => undefined;
 

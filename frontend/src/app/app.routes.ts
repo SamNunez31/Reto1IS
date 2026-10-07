@@ -47,6 +47,7 @@ export const routes: Routes = [
     path: 'observabilidad',
     loadComponent: () => import('./features/admin/observabilidad.component').then((m) => m.ObservabilidadComponent),
     title: 'Observabilidad',
+    data: { pagina: true },
   },
   { path: 'acceso-denegado', component: AccesoDenegadoComponent, title: 'Acceso denegado' },
   { path: 'sesion-expirada', component: SesionExpiradaComponent, title: 'Sesión expirada' },
