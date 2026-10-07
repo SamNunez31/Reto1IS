@@ -157,6 +157,9 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
                   <td>{{ u['activo'] ? 'Sí' : 'No' }}</td>
                   <td>@if (u['rol'] !== 'ADMIN') {
                     <button class="btn btn-chico" type="button" (click)="estadoUsuario(u)">{{ u['activo'] ? 'Desactivar' : 'Activar' }}</button>
+                    @if (u['activo']) {
+                      <button class="btn btn-chico" type="button" (click)="hacerAdmin(u)">Hacer administrador</button>
+                    }
                   }</td></tr>
               }
             </tbody>
@@ -485,6 +488,18 @@ export class AdminComponent implements OnInit {
     );
     if (!si) return;
     this.accion(this.api.estadoUsuario(this.texto(u['id']), !u['activo']), desactivar ? 'Usuario desactivado' : 'Usuario activado', 'usuarios');
+  }
+
+  async hacerAdmin(u: Fila): Promise<void> {
+    const quien = `${this.texto(u['nombres'])} ${this.texto(u['apellidos'])} (${this.texto(u['email'])})`;
+    const si = await this.confirmar.pedir({
+      titulo: '¿Asignar rol de administrador?',
+      mensaje: `${quien} tendrá acceso al panel de administración (usuarios, catálogos, impuestos, jobs) y dejará de poder reservar. Deberá volver a iniciar sesión para que el cambio se aplique.`,
+      confirmar: 'Hacer administrador',
+      tono: 'peligro',
+    });
+    if (!si) return;
+    this.accion(this.api.asignarAdmin(this.texto(u['id'])), 'Rol de administrador asignado', 'usuarios');
   }
 
   crear(tipo: 'amenities' | 'cities', cuerpo: object): void {

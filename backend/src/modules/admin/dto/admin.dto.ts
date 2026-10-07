@@ -22,6 +22,11 @@ export class EstadoUsuarioDto {
   @IsBoolean() activo: boolean;
 }
 
+/** Solo se permite promover a ADMIN (no hay degradación desde la API). */
+export class RolUsuarioDto {
+  @IsIn(['ADMIN']) rol: 'ADMIN';
+}
+
 export class AmenidadDto {
   @Sanitizar() @IsString() @Length(2, 60) nombre: string;
   @Sanitizar() @IsString() @Length(2, 30) categoria: string;

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { UsuarioToken } from '../../common/auth/decorators';
 import { Listado } from '../../common/http/respuestas';
-import { invalido, noEncontrado } from '../../common/problem/problem';
+import { conflicto, invalido, noEncontrado } from '../../common/problem/problem';
 import { DbService } from '../../database/db.service';
 import {
   AmenidadDto, CiudadDto, FiltroAlojamientosDto, FiltroEventosDto, FiltroUsuariosDto,
@@ -78,6 +78,22 @@ export class AdminService {
     const r = await this.db.query(`UPDATE usuario SET activo = $2 WHERE id = $1 RETURNING id`, [id, activo]);
     if (!r.length) throw noEncontrado('El usuario no existe');
     return { id, activo };
+  }
+
+  /**
+   * Promueve a ADMIN a otro usuario. Reglas: debe existir, estar activo y no ser ya ADMIN.
+   * El UPDATE condicional (rol = 'USUARIO') evita carreras entre dos admins. El JWT del usuario promovido
+   * conserva el rol anterior hasta que vuelva a iniciar sesión (el token dura 30 min).
+   */
+  async asignarRol(id: string, rol: 'ADMIN', admin: UsuarioToken): Promise<{ id: string; rol: string }> {
+    if (id === admin.sub) throw conflicto('Ya eres administrador');
+    const [u] = await this.db.query<{ rol: string; activo: boolean }>(`SELECT rol::text AS rol, activo FROM usuario WHERE id = $1`, [id]);
+    if (!u) throw noEncontrado('El usuario no existe');
+    if (u.rol === 'ADMIN') throw conflicto('El usuario ya es administrador');
+    if (!u.activo) throw conflicto('Activa al usuario antes de asignarle el rol de administrador');
+    const r = await this.db.query(`UPDATE usuario SET rol = 'ADMIN' WHERE id = $1 AND rol = 'USUARIO' AND activo RETURNING id`, [id]);
+    if (!r.length) throw conflicto('El usuario ya es administrador o cambió de estado');
+    return { id, rol };
   }
 
   async catalogos(): Promise<Record<string, Fila[]>> {

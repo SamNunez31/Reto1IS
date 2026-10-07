@@ -7,7 +7,7 @@ import { JobsService, ResultadoJob } from '../jobs/jobs.service';
 import { AdminService } from './admin.service';
 import {
   AmenidadDto, CerrarImpuestoDto, CiudadDto, EstadoAlojamientoDto, EstadoUsuarioDto, FiltroAlojamientosDto,
-  FiltroEventosDto, FiltroUsuariosDto, ImpuestoDto,
+  FiltroEventosDto, FiltroUsuariosDto, ImpuestoDto, RolUsuarioDto,
 } from './dto/admin.dto';
 
 type Fila = Record<string, unknown>;
@@ -68,6 +68,12 @@ export class AdminController {
   @ApiOperation({ summary: 'Activar o desactivar un usuario' })
   async estadoUsuario(@Param('id', uuid('id')) id: string, @Body() dto: EstadoUsuarioDto, @UsuarioActual() u: UsuarioToken): Promise<RespuestaApi<{ id: string; activo: boolean }>> {
     return ok(await this.admin.estadoUsuario(id, dto.activo, u), dto.activo ? 'Usuario activado' : 'Usuario desactivado');
+  }
+
+  @Patch('users/:id/role')
+  @ApiOperation({ summary: 'Asignar el rol de administrador a otro usuario (el usuario debe volver a iniciar sesión)' })
+  async rolUsuario(@Param('id', uuid('id')) id: string, @Body() dto: RolUsuarioDto, @UsuarioActual() u: UsuarioToken): Promise<RespuestaApi<{ id: string; rol: string }>> {
+    return ok(await this.admin.asignarRol(id, dto.rol, u), 'Rol actualizado: el usuario debe volver a iniciar sesión para ver el panel de administración');
   }
 
   @Get('catalogs')

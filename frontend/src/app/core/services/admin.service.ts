@@ -57,6 +57,9 @@ export class AdminService {
   estadoUsuario(id: string, activo: boolean): Observable<{ id: string; activo: boolean }> {
     return datos(this.http.patch<RespuestaApi<{ id: string; activo: boolean }>>(`${this.base}/users/${id}/status`, { activo }));
   }
+  asignarAdmin(id: string): Observable<{ id: string; rol: string }> {
+    return datos(this.http.patch<RespuestaApi<{ id: string; rol: string }>>(`${this.base}/users/${id}/role`, { rol: 'ADMIN' }));
+  }
   catalogos(): Observable<Catalogos> {
     return datos(this.http.get<RespuestaApi<Catalogos>>(`${this.base}/catalogs`));
   }
