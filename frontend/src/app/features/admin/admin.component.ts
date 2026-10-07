@@ -13,6 +13,7 @@ import { avisoTemporal } from '../../shared/aviso';
 import { CalificacionComponent } from '../../shared/calificacion';
 import { PagoComponent } from '../../shared/pago';
 import { fechaMasDias } from '../../shared/fechas';
+import { indicePestana } from '../../shared/pestanas';
 import { fechaLarga, rangoCorto } from '../../shared/textos';
 import { FiltroDirective } from '../../shared/entrada';
 import { motivoNombreLugar, motivoRango } from '../../shared/validadores';
@@ -30,15 +31,17 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
   ],
   template: `
     <h1>Administración</h1>
-    <div class="pestanas" role="tablist">
+    <div class="pestanas" role="tablist" aria-label="Secciones de administración">
       @for (p of pestanas; track p.id) {
-        <button type="button" role="tab" [attr.aria-selected]="pestana() === p.id" (click)="ir(p.id)">{{ p.nombre }}</button>
+        <button type="button" role="tab" [id]="'tab-admin-' + p.id" [attr.aria-selected]="pestana() === p.id" [attr.tabindex]="pestana() === p.id ? 0 : -1"
+                aria-controls="panel-admin" (click)="ir(p.id)" (keydown)="teclaPestana($event)">{{ p.nombre }}</button>
       }
     </div>
     <app-alerta-error [error]="error()" />
     @if (ok.texto()) { <p class="alerta alerta-ok" role="status">{{ ok.texto() }}</p> }
     @if (cargando()) { <app-cargando /> }
 
+    <div id="panel-admin" role="tabpanel" [attr.aria-labelledby]="'tab-admin-' + pestana()">
     @switch (pestana()) {
       @case ('indicadores') { <app-dashboard-admin /> }
 
@@ -61,7 +64,8 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
         <p class="meta">{{ total() }} alojamiento{{ total() === 1 ? '' : 's' }}</p>
         <div class="tabla-scroll tarjeta">
           <table class="tabla">
-            <thead><tr><th>#</th><th>Nombre</th><th>Tipo</th><th>Ciudad</th><th>Opciones</th><th>Estado</th><th><span class="sr-only">Acciones</span></th></tr></thead>
+            <caption class="sr-only">Alojamientos del catálogo</caption>
+            <thead><tr><th scope="col">#</th><th scope="col">Nombre</th><th scope="col">Tipo</th><th scope="col">Ciudad</th><th scope="col">Opciones</th><th scope="col">Estado</th><th scope="col"><span class="sr-only">Acciones</span></th></tr></thead>
             <tbody>
               @for (a of filas(); track a['codigo']) {
                 <tr><td>{{ a['codigo'] }}</td><td>{{ a['nombre'] }}</td><td>{{ a['tipo'] }}</td><td>{{ a['ciudad'] }}</td>
@@ -101,7 +105,8 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
         </label>
         <div class="tabla-scroll tarjeta">
           <table class="tabla">
-            <thead><tr><th>Código de reserva</th><th>Alojamiento</th><th>Huésped</th><th>Fechas</th><th>Total</th><th>Estado</th><th>Pago</th><th><span class="sr-only">Acciones</span></th></tr></thead>
+            <caption class="sr-only">Reservas</caption>
+            <thead><tr><th scope="col">Código de reserva</th><th scope="col">Alojamiento</th><th scope="col">Huésped</th><th scope="col">Fechas</th><th scope="col">Total</th><th scope="col">Estado</th><th scope="col">Pago</th><th scope="col"><span class="sr-only">Acciones</span></th></tr></thead>
             <tbody>
               @for (s of reservas(); track s.id) {
                 <tr>
@@ -144,7 +149,8 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
         <form class="fila" (ngSubmit)="ir('usuarios')"><label>Buscar <input name="q" [(ngModel)]="busqueda" /></label><button class="btn" type="submit">Buscar</button></form>
         <div class="tabla-scroll tarjeta">
           <table class="tabla">
-            <thead><tr><th>Correo</th><th>Nombre</th><th>Rol</th><th>Activo</th><th></th></tr></thead>
+            <caption class="sr-only">Usuarios</caption>
+            <thead><tr><th scope="col">Correo</th><th scope="col">Nombre</th><th scope="col">Rol</th><th scope="col">Activo</th><th scope="col"></th></tr></thead>
             <tbody>
               @for (u of filas(); track u['id']) {
                 <tr><td>{{ u['email'] }}</td><td>{{ u['nombres'] }} {{ u['apellidos'] }}</td><td>{{ u['rol'] === 'ADMIN' ? 'Administrador' : 'Huésped' }}</td>
@@ -196,7 +202,8 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
           <h2>Tarifas vigentes e históricas</h2>
           <div class="tabla-scroll">
             <table class="tabla">
-              <thead><tr><th>Nombre</th><th>Tipo</th><th>%</th><th>Desde</th><th>Hasta</th><th><span class="sr-only">Acciones</span></th></tr></thead>
+              <caption class="sr-only">Tarifas de impuestos y feriados</caption>
+              <thead><tr><th scope="col">Nombre</th><th scope="col">Tipo</th><th scope="col">%</th><th scope="col">Desde</th><th scope="col">Hasta</th><th scope="col"><span class="sr-only">Acciones</span></th></tr></thead>
               <tbody>
                 @for (t of filas(); track t['id']) {
                   <tr><td>{{ t['nombre'] }}</td><td>{{ t['tipo'] }}</td><td>{{ t['porcentaje'] }}</td><td>{{ fecha(t['vigente_desde']) }}</td>
@@ -236,7 +243,8 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
         <form class="fila" (ngSubmit)="ir('eventos')"><label>Tipo <input name="te" [(ngModel)]="tipoEvento" placeholder="ReservaCreada" /></label><button class="btn" type="submit">Filtrar</button></form>
         <div class="tabla-scroll tarjeta">
           <table class="tabla">
-            <thead><tr><th>#</th><th>Tipo</th><th>Correlación</th><th>Creado</th><th>Publicado</th><th>Payload</th></tr></thead>
+            <caption class="sr-only">Eventos de negocio</caption>
+            <thead><tr><th scope="col">#</th><th scope="col">Tipo</th><th scope="col">Correlación</th><th scope="col">Creado</th><th scope="col">Publicado</th><th scope="col">Payload</th></tr></thead>
             <tbody>
               @for (e of filas(); track e['id']) {
                 <tr><td>{{ e['id'] }}</td><td>{{ e['tipo'] }}</td><td><code>{{ texto(e['correlacion_id']).slice(0, 8) }}</code></td>
@@ -263,6 +271,7 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
         </section>
       }
     }
+    </div>
   `,
   styles: `.mt { margin-top: 1rem; } .filtro-inline { max-width: 240px; } pre { white-space: pre-wrap; font-size: .8rem; max-width: 420px; }
     .filtros-aloj { align-items: flex-end; flex-wrap: wrap; } .acciones-fila { white-space: nowrap; } .acciones-fila .btn { margin: .1rem; }`,
@@ -325,6 +334,16 @@ export class AdminComponent implements OnInit {
 
   texto(v: unknown): string {
     return v === null || v === undefined ? '' : String(v);
+  }
+
+  /** Flechas, Inicio y Fin cambian de pestaña y mueven el foco (patrón de pestañas WAI-ARIA). */
+  teclaPestana(ev: KeyboardEvent): void {
+    const i = indicePestana(ev.key, this.pestanas.findIndex((p) => p.id === this.pestana()), this.pestanas.length);
+    if (i === null) return;
+    ev.preventDefault();
+    const id = this.pestanas[i].id;
+    this.ir(id);
+    document.getElementById('tab-admin-' + id)?.focus();
   }
 
   ir(p: Pestana): void {

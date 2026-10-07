@@ -8,6 +8,7 @@ import { ErrorVista, leerError } from '../../core/services/api-base';
 import { CatalogoService } from '../../core/services/catalogo.service';
 import { ReservasService } from '../../core/services/reservas.service';
 import { fechaMasDias } from '../../shared/fechas';
+import { indicePestana } from '../../shared/pestanas';
 import { avisoTemporal } from '../../shared/aviso';
 import { SelectorEstrellasComponent } from '../../shared/calificacion';
 import { PagoComponent } from '../../shared/pago';
@@ -39,7 +40,7 @@ const GRUPO: Record<string, Pestana> = {
     </div>
     <div class="pestanas" role="tablist" aria-label="Filtrar reservas">
       @for (p of pestanas; track p.id) {
-        <button type="button" role="tab" [id]="'tab-' + p.id" [attr.aria-selected]="pestana() === p.id" aria-controls="lista-viajes" (click)="cambiar(p.id)">
+        <button type="button" role="tab" [id]="'tab-' + p.id" [attr.aria-selected]="pestana() === p.id" [attr.tabindex]="pestana() === p.id ? 0 : -1" aria-controls="lista-viajes" (click)="cambiar(p.id)" (keydown)="teclaPestana($event)">
           {{ p.nombre }} <span class="contador-tab">{{ cuenta()[p.id] }}</span>
         </button>
       }
@@ -232,6 +233,15 @@ export class MisReservasComponent implements OnInit {
 
   ngOnInit(): void {
     this.cargar();
+  }
+
+  /** Flechas, Inicio y Fin cambian de pestaña y mueven el foco (patrón de pestañas WAI-ARIA). */
+  teclaPestana(ev: KeyboardEvent): void {
+    const i = indicePestana(ev.key, this.pestanas.findIndex((p) => p.id === this.pestana()), this.pestanas.length);
+    if (i === null) return;
+    ev.preventDefault();
+    this.cambiar(this.pestanas[i].id);
+    document.getElementById('tab-' + this.pestanas[i].id)?.focus();
   }
 
   cambiar(p: Pestana): void {

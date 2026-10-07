@@ -111,7 +111,8 @@ describe('Validadores de campos', () => {
 
 @Component({
   imports: [ReactiveFormsModule, FiltroDirective],
-  template: `<input id="n" appFiltro="entero" [formControl]="numero" /><input id="t" appFiltro="nombre" [formControl]="texto" />`,
+  template: `<input id="n" appFiltro="entero" [formControl]="numero" /><input id="t" appFiltro="nombre" [formControl]="texto" />
+    <input id="g" appFiltro="nombre" autocomplete="given-name" [formControl]="texto" />`,
 })
 class PruebaFiltroComponent {
   numero = new FormControl<number | null>(null);
@@ -137,6 +138,14 @@ describe('FiltroDirective', () => {
     el.dispatchEvent(new Event('input'));
     expect(el.value).toBe('123');
     expect(f.componentInstance.numero.value).toBe(123);
+  });
+
+  it('respeta el autocomplete del campo (WCAG 1.3.5) y solo pone "off" si el campo no declara uno', () => {
+    const f = TestBed.createComponent(PruebaFiltroComponent);
+    f.detectChanges();
+    const el = f.nativeElement as HTMLElement;
+    expect(el.querySelector('#g')?.getAttribute('autocomplete')).toBe('given-name');
+    expect(el.querySelector('#t')?.getAttribute('autocomplete')).toBe('off');
   });
 
   it('bloquea dígitos en un campo de nombre', () => {

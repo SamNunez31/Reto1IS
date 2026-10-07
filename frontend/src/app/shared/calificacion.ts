@@ -68,7 +68,7 @@ export class SelectorEstrellasComponent {
       </div>
       <div class="contador-control">
         <button type="button" class="btn-redondo" (click)="cambiar(-1)" [disabled]="valor() <= min()" [attr.aria-label]="'Quitar ' + singular()">−</button>
-        <span class="contador-valor" aria-live="polite" [attr.aria-label]="valor() + ' ' + etiqueta().toLowerCase()">{{ valor() }}</span>
+        <span class="contador-valor" aria-live="polite">{{ valor() }}<span class="sr-only"> {{ etiqueta().toLowerCase() }}</span></span>
         <button type="button" class="btn-redondo" (click)="cambiar(1)" [disabled]="valor() >= max()" [attr.aria-label]="'Agregar ' + singular()">+</button>
       </div>
     </div>
