@@ -96,6 +96,13 @@ BEGIN
   IF NOT FOUND OR p.usuario_id <> p_usuario THEN RAISE EXCEPTION 'PREVIEW_NO_EXISTE: la previsualización no existe'; END IF;
   IF p.reserva_id IS NOT NULL THEN RETURN p.reserva_id; END IF;          -- reintento: devuelve la misma orden
   IF p.expira_en < now() THEN RAISE EXCEPTION 'PREVIEW_EXPIRADO: la previsualización expiró, vuelve a cotizar'; END IF;
+  -- Regla de negocio: un mismo huésped no puede tener dos reservas activas de la misma unidad con fechas que se solapan
+  IF EXISTS (SELECT 1 FROM reserva r JOIN reserva_detalle d ON d.reserva_id = r.id
+              WHERE r.huesped_id = p_usuario AND d.unidad_id = p.unidad_id
+                AND r.estado IN ('PENDIENTE','CONFIRMADA')
+                AND r.fecha_entrada < p.fecha_salida AND r.fecha_salida > p.fecha_entrada) THEN
+    RAISE EXCEPTION 'RESERVA_DUPLICADA: ya no está disponible para ti, porque ya tienes una reserva activa de este alojamiento en esas fechas';
+  END IF;
   SELECT total INTO v_total FROM fn_cotizar(p.unidad_id, p.fecha_entrada, p.fecha_salida, p.cantidad);
   IF v_total <> p.total_cotizado THEN RAISE EXCEPTION 'PRECIO_CAMBIO: el precio cambió de % a %', p.total_cotizado, v_total; END IF;
   SELECT alojamiento_id INTO v_aloj FROM unidad_alojamiento WHERE id = p.unidad_id;

@@ -14,6 +14,7 @@ const MAPEO_NEGOCIO: Record<string, Mapeo> = {
   SIN_DISPONIBILIDAD: { status: 409, code: 'ROOM_NO_LONGER_AVAILABLE' },
   UNIDAD_INACTIVA: { status: 409, code: 'ROOM_NO_LONGER_AVAILABLE' },
   NO_RESERVABLE: { status: 409, code: 'ROOM_NO_LONGER_AVAILABLE' },
+  RESERVA_DUPLICADA: { status: 409, code: 'VALIDATION_FAILED' },
   PRECIO_CAMBIO: { status: 409, code: 'PRICE_CHANGED', retryAfter: 1 },
   PREVIEW_EXPIRADO: { status: 409, code: 'PRICE_CHANGED', retryAfter: 1 },
   CAPACIDAD_EXCEDIDA: { status: 400, code: 'VALIDATION_FAILED' },
