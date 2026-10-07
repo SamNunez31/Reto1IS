@@ -328,9 +328,11 @@ Solo frontend, sobre endpoints de **solo lectura** que ya existían (no hubo cam
 
 Gráficos propios en SVG/CSS (sin librerías nuevas), de una sola serie con el color primario; cada uno con título, texto alternativo (`role="img"` + `aria-label` con el resumen), tooltip nativo y una **tabla de datos equivalente** ("Ver datos en tabla"). Estados de carga, vacío y error por bloque; en móvil sin scroll horizontal.
 
-### Observabilidad local del navegador (Administración → Observabilidad)
+### Observabilidad local
 
-`ObservabilidadService` (`frontend/src/app/core/services/observabilidad.service.ts`) arranca con la app (`provideAppInitializer`) y guarda en `localStorage` (clave `posada-observability:v1`, máximo **300 eventos**; los más antiguos se descartan). **No hay backend ni envío de datos.** Todo va en `try/catch`: si `localStorage`, `PerformanceObserver` u otra API no existe, el sitio sigue funcionando.
+Disponible en la página pública **`/observabilidad`** (enlace en el pie) y en Administración → Observabilidad. Solo usa datos de **este navegador**.
+
+`ObservabilidadService` (`frontend/src/app/core/services/observabilidad.service.ts`) arranca con la app (`provideAppInitializer`) y guarda en `localStorage` con claves de prefijo **`posadaec-observability`** (`posadaec-observability:v1`; la clave antigua `posada-observability:v1` se migra una vez y se borra), con un máximo de **200 eventos** que rotan (los más antiguos se descartan). Si `localStorage` no existe o falla, los eventos quedan en memoria. **No hay backend ni envío de datos.** Todo va en `try/catch`: si `localStorage`, `PerformanceObserver` u otra API no existe, el sitio sigue funcionando.
 
 | Se registra | Cómo |
 |---|---|
@@ -349,10 +351,11 @@ Gráficos propios en SVG/CSS (sin librerías nuevas), de una sola serie con el c
 | Contraseñas y datos de tarjeta | esos campos quedan como `campo:password` / `campo:tarjeta` con etiqueta "(oculto)" |
 | Números largos, correos y tokens dentro de textos | `limpiarTexto` enmascara 4+ dígitos (••••), correos ([correo]) y cadenas tipo token ([token]) |
 | Cuerpos, cabeceras y tokens de peticiones; IDs y query strings | el interceptor solo toma método, ruta con patrón, estado y ms |
+| Query strings y fragmentos dentro de textos (p. ej. URLs en mensajes de error) | `limpiarTexto` los quita (`https://h/a?token=x#f` → `https://h/a`) |
 
-`window.PosadaObservability.getSnapshot()` devuelve el estado completo (entorno, métricas, resumen y eventos). El panel muestra el resumen (errores, clics, llamadas al API, p95 de latencia, tiempo de carga, LCP, soporte de APIs), la tabla de los últimos 50 eventos y los botones **Actualizar**, **Generar evento de demostración**, **Descargar snapshot JSON** y **Limpiar datos** (con diálogo de confirmación); avisa por `aria-live`.
+`window.PosadaObservability.getSnapshot()` devuelve el estado completo (entorno, métricas, resumen y eventos). El panel muestra el resumen (errores, clics, llamadas al API, p95 de latencia, tiempo de carga, LCP, soporte de APIs), la tabla de los últimos 50 eventos y los botones **Actualizar**, **Generar evento de demostración**, **Descargar snapshot JSON** y **Limpiar almacenamiento** (con el diálogo de confirmación de `confirmar.ts`); avisa por `aria-live`. Si el navegador no ofrece una métrica o API, la tarjeta muestra "No disponible".
 
-**Cómo probarlo:** entrar como admin → Observabilidad; hacer clics por el sitio; en la consola del navegador ejecutar `setTimeout(() => { throw new Error('prueba') })` (aparece como "Error JS"); pulsar *Actualizar*, *Descargar snapshot JSON* y *Limpiar datos*. Pruebas automáticas: `npm test` en `frontend/` (no guarda valores de campos ni tarjetas, límite de 300, rutas con patrón, p95, tolerancia a `localStorage` caído, interceptor sin cuerpos ni cabeceras).
+**Cómo probarlo:** abrir `/observabilidad`; hacer clic en un botón o enlace; en la consola ejecutar `setTimeout(() => { throw new Error('prueba') })` (aparece como "Error JS"); pulsar *Generar evento de demostración*; cambiar de pestaña y volver ("Pestaña oculta/visible"); pulsar *Actualizar*, *Descargar snapshot JSON* y *Limpiar almacenamiento*. En la consola, `window.PosadaObservability.getSnapshot()` devuelve lo mismo que el JSON descargado. Pruebas automáticas: `npm test` en `frontend/` (límite de 200 y rotación, prefijo y migración de la clave, saneado de URLs, sin valores de campos ni tarjetas, snapshot serializable, rutas con patrón, p95, tolerancia a `localStorage` caído, interceptor sin cuerpos ni cabeceras).
 
 **Limitación:** solo mide **el navegador local** de quien lo abre; no hay vista agregada de todos los usuarios. Del lado del servidor ya existen logs JSON con `X-Correlation-Id`, auditoría de accesos y `/health` (§5). **Evolución:** trazas y métricas del servidor con OpenTelemetry (exportador OTLP) y Prometheus/Grafana, y, si se quisiera agregar datos del cliente, un endpoint de ingesta con consentimiento y muestreo.
 

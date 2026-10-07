@@ -1,16 +1,20 @@
 import { ErrorHandler, Injectable, NgZone, inject, signal } from '@angular/core';
 
 /*
- * Observabilidad LOCAL del navegador: todo se guarda en localStorage (prefijo posada-observability) y
+ * Observabilidad LOCAL del navegador: todo se guarda en localStorage (prefijo posadaec-observability) y
  * NUNCA se envía a un servidor. Qué se registra y qué no: docs/DOCUMENTO_TECNICO.md → "Observabilidad".
  * Regla de privacidad: no se guardan valores de campos, contraseñas, datos de tarjeta, tokens, cabeceras
- * ni cuerpos de peticiones; las etiquetas pasan por `limpiarTexto` (enmascara números largos y correos).
+ * ni cuerpos de peticiones; los textos pasan por `limpiarTexto` (enmascara números largos, correos y tokens
+ * y quita query strings y fragmentos de las URL que contengan).
  * Si localStorage o alguna API no existe, el sitio sigue funcionando (todo va en try/catch).
  */
 
-export const PREFIJO_OBS = 'posada-observability';
+export const PREFIJO_OBS = 'posadaec-observability';
 export const CLAVE_OBS = `${PREFIJO_OBS}:v1`;
-export const MAX_EVENTOS = 300;
+/** Clave de versiones anteriores: se migra una vez y se borra. */
+export const CLAVE_OBS_ANTERIOR = 'posada-observability:v1';
+/** Últimos eventos que se conservan (los más antiguos se descartan al rotar). */
+export const MAX_EVENTOS = 200;
 const MAX_ETIQUETA = 40;
 const MAX_DETALLE = 160;
 
@@ -76,11 +80,21 @@ const METRICAS_VACIAS: MetricasCarga = { ttfb_ms: null, dom_listo_ms: null, carg
 
 // ---------- Utilidades puras (exportadas para las pruebas) ----------
 
-/** Recorta y enmascara: secuencias de 4+ dígitos (tarjetas, cédulas, teléfonos), correos y cadenas tipo token. */
+/** URL sin query string ni fragmento (pueden llevar tokens, correos o datos de formularios). */
+export function sinQuery(url: string): string {
+  return (url ?? '').split(/[?#]/)[0];
+}
+
+/**
+ * Recorta y enmascara: URL sin query ni fragmento, secuencias de 4+ dígitos (tarjetas, cédulas, teléfonos),
+ * correos y cadenas tipo token.
+ */
 export function limpiarTexto(texto: string, max = MAX_ETIQUETA): string {
   const t = (texto ?? '')
     .replace(/\s+/g, ' ')
     .trim()
+    .replace(/\b((?:https?|blob|file):\/\/[^\s?#]*)[?#][^\s]*/gi, '$1')
+    .replace(/(^|\s)(\/[^\s?#]*)[?#][^\s]*/g, '$1$2')
     .replace(/[^\s@]+@[^\s@]+\.[^\s@]+/g, '[correo]')
     .replace(/\b[A-Za-z0-9_-]{24,}\b/g, '[token]')
     .replace(/\d(?:[\s.-]?\d){3,}/g, '••••');
@@ -93,7 +107,7 @@ export function rutaPatron(url: string): string {
   try {
     ruta = new URL(url, 'http://local').pathname;
   } catch {
-    ruta = url.split(/[?#]/)[0];
+    ruta = sinQuery(url);
   }
   return ruta
     .split('/')
@@ -216,7 +230,7 @@ export class ObservabilidadService {
       if (s) {
         for (let i = s.length - 1; i >= 0; i--) {
           const k = s.key(i);
-          if (k?.startsWith(PREFIJO_OBS)) s.removeItem(k);
+          if (k?.startsWith(PREFIJO_OBS) || k === CLAVE_OBS_ANTERIOR) s.removeItem(k);
         }
       }
     } catch { /* sin almacenamiento */ }
@@ -234,7 +248,8 @@ export class ObservabilidadService {
       entorno: this.entorno(),
       metricas: { ...this.metricas },
       resumen: this.resumen(),
-      eventos: this.eventos.map((e) => ({ ...e, datos: e.datos ? { ...e.datos } : undefined })),
+      // Copia plana y serializable (sin `undefined`): igual a lo que produce JSON.parse(JSON.stringify(...))
+      eventos: this.eventos.map(({ datos, ...e }) => (datos ? { ...e, datos: { ...datos } } : { ...e })),
     };
   }
 
@@ -379,7 +394,17 @@ export class ObservabilidadService {
 
   private cargar(): void {
     try {
-      const crudo = almacen()?.getItem(CLAVE_OBS);
+      const s = almacen();
+      let crudo = s?.getItem(CLAVE_OBS) ?? null;
+      // Migración única desde la clave anterior (posada-observability:v1)
+      const anterior = s?.getItem(CLAVE_OBS_ANTERIOR) ?? null;
+      if (anterior !== null) {
+        if (!crudo) {
+          crudo = anterior;
+          s?.setItem(CLAVE_OBS, anterior);
+        }
+        s?.removeItem(CLAVE_OBS_ANTERIOR);
+      }
       if (!crudo) return;
       const g = JSON.parse(crudo) as Partial<Guardado>;
       if (Array.isArray(g.eventos)) this.eventos = g.eventos.slice(-MAX_EVENTOS);

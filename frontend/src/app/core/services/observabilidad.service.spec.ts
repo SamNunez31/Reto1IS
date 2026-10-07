@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { observabilidadInterceptor } from '../interceptors/observabilidad.interceptor';
 import { API } from './api-base';
 import {
-  CLAVE_OBS, describirElemento, limpiarTexto, MAX_EVENTOS, ObservabilidadService, percentil, rutaPatron,
+  CLAVE_OBS, CLAVE_OBS_ANTERIOR, describirElemento, limpiarTexto, MAX_EVENTOS, ObservabilidadService, percentil, rutaPatron, sinQuery,
 } from './observabilidad.service';
 
 describe('ObservabilidadService', () => {
@@ -66,6 +66,45 @@ describe('ObservabilidadService', () => {
     expect(rutaPatron('http://h/api/v1/orders/0b1e2c3d-1111-4222-8333-944455556666/cancel?x=1')).toBe('/api/v1/orders/:id/cancel');
     expect(rutaPatron('/api/v1/host/accommodations/1001/units')).toBe('/api/v1/host/accommodations/:n/units');
     expect(rutaPatron('/api/v1/auth/reset?token=abc')).toBe('/api/v1/auth/reset');
+  });
+
+  it('el límite es de 200 eventos y se guarda con el prefijo posadaec-observability', () => {
+    expect(MAX_EVENTOS).toBe(200);
+    obs.registrar('demo', 'algo');
+    expect(CLAVE_OBS.startsWith('posadaec-observability')).toBeTrue();
+    expect(JSON.parse(localStorage.getItem(CLAVE_OBS) ?? '{}').eventos.length).toBe(1);
+  });
+
+  it('migra una vez la clave anterior (posada-observability:v1) y la borra', () => {
+    localStorage.removeItem(CLAVE_OBS);
+    localStorage.setItem(CLAVE_OBS_ANTERIOR, JSON.stringify({ eventos: [{ t: '2026-10-06T00:00:00.000Z', tipo: 'demo', detalle: 'viejo' }] }));
+    const nuevo = TestBed.runInInjectionContext(() => new ObservabilidadService());
+    expect(nuevo.getSnapshot().eventos.map((e) => e.detalle)).toEqual(['viejo']);
+    expect(localStorage.getItem(CLAVE_OBS_ANTERIOR)).toBeNull();
+    expect(localStorage.getItem(CLAVE_OBS)).not.toBeNull();
+  });
+
+  it('sanea URL: sin query string ni fragmento, también dentro de mensajes de error', () => {
+    expect(sinQuery('https://h/a/b?token=abc#x')).toBe('https://h/a/b');
+    expect(limpiarTexto('No cargó https://cdn.x/img.png?firma=QWERTY#frag', 160)).toBe('No cargó https://cdn.x/img.png');
+    expect(limpiarTexto('GET /api/v1/auth/reset?token=abc&email=ana falló', 160)).toBe('GET /api/v1/auth/reset falló');
+    expect(rutaPatron('https://h/alojamientos/1001?checkin=2026-10-20#fotos')).toBe('/alojamientos/:n');
+    obs.registrarError('error-js', new Error('Fallo en https://api.x/orders?token=SecretoQuery#Frag'));
+    const s = json();
+    expect(s).not.toContain('SecretoQuery');
+    expect(s).not.toContain('#Frag');
+  });
+
+  it('getSnapshot es JSON serializable (solo datos planos, sin undefined ni funciones)', () => {
+    obs.registrar('demo', 'con datos', { a: 1, b: 'x', c: true, d: null });
+    obs.registrar('demo', 'sin datos');
+    const s = obs.getSnapshot();
+    const plano = (v: unknown): boolean =>
+      v === null || ['string', 'number', 'boolean'].includes(typeof v)
+      || (Array.isArray(v) && v.every(plano))
+      || (typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype && Object.values(v as object).every(plano));
+    expect(plano(s)).toBeTrue();
+    expect(JSON.parse(JSON.stringify(s))).toEqual(s);
   });
 
   it('p95 por rango más cercano', () => {

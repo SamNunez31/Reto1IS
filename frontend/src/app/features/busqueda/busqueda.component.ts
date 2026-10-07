@@ -7,7 +7,7 @@ import { switchMap } from 'rxjs';
 import { CriteriosBusqueda, DetalleAlojamiento } from '../../core/models/api.models';
 import { ErrorVista, leerError } from '../../core/services/api-base';
 import { CatalogoService } from '../../core/services/catalogo.service';
-import { fechaMasDias } from '../../shared/fechas';
+import { fechaMasDias, hoyEcuador, motivoFechas } from '../../shared/fechas';
 import { CalificacionComponent } from '../../shared/calificacion';
 import { noches, plural, rangoCorto, textoHuespedes, textoPersonas } from '../../shared/textos';
 import { AlertaErrorComponent, EstrellasComponent } from '../../shared/ui';
@@ -26,9 +26,8 @@ export function motivoBusqueda(
   hoy: string,
 ): string {
   const entre = (x: unknown, min: number, max: number) => x !== null && x !== '' && Number.isInteger(Number(x)) && Number(x) >= min && Number(x) <= max;
-  if (!v.checkin || !v.checkout) return 'Elige las fechas de entrada y salida.';
-  if (v.checkin < hoy) return 'La entrada no puede ser en el pasado.';
-  if (v.checkout <= v.checkin) return 'La salida debe ser al menos un día después de la entrada.';
+  const f = motivoFechas(v.checkin, v.checkout, hoy);
+  if (f.entrada || f.salida) return f.entrada || f.salida;
   if (!entre(v.adultos, 1, 30)) return 'Indica entre 1 y 30 adultos (número entero).';
   if (!entre(v.ninos ?? 0, 0, 10)) return 'Indica entre 0 y 10 niños (número entero).';
   if (!entre(v.habitaciones, 1, 20)) return 'Indica entre 1 y 20 habitaciones (número entero).';
@@ -66,10 +65,14 @@ export function motivoBusqueda(
           </div>
         </div>
         <label class="campo"><span class="campo-etiqueta">Entrada</span>
-          <input type="date" formControlName="checkin" [min]="hoy" required />
+          <input type="date" formControlName="checkin" [min]="hoy" required [attr.aria-invalid]="!!fechas().entrada"
+                 [attr.aria-describedby]="fechas().entrada ? 'err-checkin' : null" />
+          @if (fechas().entrada) { <small class="msg-fecha" id="err-checkin" role="alert">{{ fechas().entrada }}</small> }
         </label>
         <label class="campo"><span class="campo-etiqueta">Salida</span>
-          <input type="date" formControlName="checkout" [min]="form.controls.checkin.value" required />
+          <input type="date" formControlName="checkout" [min]="form.controls.checkin.value" required [attr.aria-invalid]="!!fechas().salida"
+                 [attr.aria-describedby]="fechas().salida ? 'err-checkout' : null" />
+          @if (fechas().salida) { <small class="msg-fecha" id="err-checkout" role="alert">{{ fechas().salida }}</small> }
         </label>
         <div class="campo">
           <span class="campo-etiqueta" id="et-huespedes">Huéspedes</span>
@@ -95,7 +98,8 @@ export function motivoBusqueda(
           @if (filtrosActivos()) { <span class="contador" [attr.aria-label]="filtrosActivos() + ' activos'">{{ filtrosActivos() }}</span> }
           <span class="flecha" aria-hidden="true">▾</span>
         </button>
-        @if (problema()) { <p class="aviso-form" role="alert">{{ problema() }}</p> }
+        <!-- Los errores de fecha ya se muestran bajo su campo -->
+        @if (problema() && !fechas().entrada && !fechas().salida) { <p class="aviso-form" role="alert">{{ problema() }}</p> }
       </div>
 
       @if (masFiltros()) {
@@ -182,7 +186,8 @@ export function motivoBusqueda(
 })
 export class BusquedaComponent implements OnInit {
   private readonly catalogo = inject(CatalogoService);
-  readonly hoy = fechaMasDias(0);
+  /** Hoy en Ecuador (misma referencia que el backend), no la fecha del reloj del navegador. */
+  readonly hoy = hoyEcuador();
   readonly constantes = toSignal(this.catalogo.constantes());
   readonly resultados = signal<DetalleAlojamiento[]>([]);
   /** "10 alojamientos · 19–21 oct · 2 noches · 5 huéspedes, 3 habitaciones" (criterios de la última búsqueda). */
@@ -218,6 +223,7 @@ export class BusquedaComponent implements OnInit {
 
   /** Qué corregir antes de buscar (fechas y huéspedes); '' si todo está bien. */
   readonly problema = computed(() => motivoBusqueda(this.valores(), this.hoy));
+  readonly fechas = computed(() => motivoFechas(this.valores().checkin, this.valores().checkout, this.hoy));
 
   private readonly provincia = toSignal(this.form.controls.province.valueChanges, { initialValue: '' });
   readonly ciudades = computed(() => {

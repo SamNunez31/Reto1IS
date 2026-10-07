@@ -105,7 +105,6 @@ h3 { font-size: 1rem; margin: .8rem 0 .4rem; }
 .btn-salir:hover { background: var(--c-error-fondo); border-color: color-mix(in srgb, var(--c-peligro) 35%, transparent); }
 .btn-salir:focus-visible { outline: 3px solid var(--c-peligro); outline-offset: 2px; }
 .nav-usuario { gap: .35rem; }
-span.nav-usuario { color: var(--gris-700); font-weight: 600; font-size: .95rem; }
 .icono-usuario { flex: none; }
 .politica-resumen { margin-top: .8rem; border-top: 1px solid var(--c-borde); padding-top: .6rem; }
 .politica-resumen h3 { font-size: .95rem; margin: 0 0 .2rem; }
@@ -233,6 +232,7 @@ input[aria-invalid='true']:focus, select[aria-invalid='true']:focus { box-shadow
 .btn-filtros .flecha { transition: transform var(--transicion); display: inline-block; }
 .btn-filtros[aria-expanded='true'] .flecha { transform: rotate(180deg); }
 .aviso-form { color: var(--c-peligro); font-size: .85rem; font-weight: 600; margin: 0; }
+.msg-fecha { display: block; color: var(--c-peligro); font-size: .78rem; font-weight: 600; line-height: 1.25; margin-top: .2rem; text-transform: none; letter-spacing: 0; }
 .mas-filtros { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0 1rem; padding: 1rem .9rem .2rem; }
 
 .resultados-cabecera { margin: 0 0 1.25rem; }
@@ -526,6 +526,20 @@ input[aria-invalid='true']:focus, select[aria-invalid='true']:focus { box-shadow
 .garantia { background: var(--c-primario-suave); color: var(--c-primario-osc); border-radius: var(--radio-s); padding: .5rem .7rem; font-size: .9rem; }
 .btn-enlace.discreto:hover { color: var(--c-peligro); }
 .dialogo form label { color: var(--c-texto); }
+/* Ventana de inicio de sesión: mismo diálogo, fondo oscurecido y desenfocado */
+.dialogo-login { width: min(440px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; }
+.dialogo-login::backdrop { background: rgb(7 30 28 / 55%); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+.dialogo-login .dialogo-cuerpo { position: relative; padding: 1.6rem 1.5rem 1.4rem; }
+.dialogo-cerrar { position: absolute; top: .6rem; right: .6rem; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 50%;
+  background: transparent; color: var(--gris-700); font-size: 1.6rem; line-height: 1; cursor: pointer; }
+.dialogo-cerrar:hover { background: var(--gris-100); color: var(--c-texto); }
+.login-antetitulo { text-transform: uppercase; letter-spacing: .14em; font-size: .72rem; font-weight: 800; color: var(--c-acento) !important; margin: 0 2.5rem .35rem 0 !important; }
+.dialogo-login h2 { font-size: clamp(1.6rem, 6vw, 2rem); margin: 0 0 .25rem; }
+.login-subtitulo { margin: 0 0 1rem !important; }
+.login-acciones { display: grid; gap: .55rem; margin-top: .4rem; }
+.login-acciones .btn { width: 100%; }
+.nav-boton { background: none; border: 0; padding: .25rem 0; font: inherit; font-weight: 600; font-size: .95rem; color: var(--gris-700); cursor: pointer; border-bottom: 2px solid transparent; }
+.nav-boton:hover { color: var(--c-primario); }
 .galeria .principal.sin-foto { aspect-ratio: 16 / 9; border-radius: var(--radio); }
 .pie-tarjeta.solo-precio { justify-content: flex-end; }
 .precio-desde strong, .precio-desde span { white-space: nowrap; }

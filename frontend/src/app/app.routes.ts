@@ -36,7 +36,8 @@ export const routes: Routes = [
       { path: 'alojamientos', loadChildren: () => import('./features/anfitrion/anfitrion.routes').then((m) => m.CATALOGO_ROUTES) },
     ],
   },
-  { path: 'login', loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent), title: 'Iniciar sesión' },
+  // /login (y el ?volver= de los guards) muestra la página de inicio con la ventana de inicio de sesión encima
+  { path: 'login', component: BusquedaComponent, title: 'Iniciar sesión' },
   { path: 'registro', loadComponent: () => import('./features/auth/registro.component').then((m) => m.RegistroComponent), title: 'Crear cuenta' },
   // Recuperación de clave deshabilitada en la interfaz (el backend la conserva): las rutas antiguas llevan al login
   { path: 'recuperar-clave', redirectTo: 'login' },
