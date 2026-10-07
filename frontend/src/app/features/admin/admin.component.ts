@@ -172,7 +172,7 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
           </div>
         </form>
         }
-        <form class="fila" (ngSubmit)="ir('usuarios')"><label>Buscar <input name="q" [(ngModel)]="busqueda" /></label><button class="btn" type="submit">Buscar</button></form>
+        <form class="busqueda-barra" role="search" (ngSubmit)="ir('usuarios')"><label>Buscar <input name="q" [(ngModel)]="busqueda" maxlength="80" placeholder="Correo o nombre" /></label><button class="btn" type="submit">Buscar</button></form>
         <div class="tabla-scroll tarjeta">
           <table class="tabla">
             <caption class="sr-only">Usuarios</caption>
@@ -269,7 +269,7 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
       }
 
       @case ('eventos') {
-        <form class="fila" (ngSubmit)="ir('eventos')"><label>Tipo <input name="te" [(ngModel)]="tipoEvento" placeholder="ReservaCreada" /></label><button class="btn" type="submit">Filtrar</button></form>
+        <form class="busqueda-barra" role="search" (ngSubmit)="ir('eventos')"><label>Tipo <input name="te" [(ngModel)]="tipoEvento" placeholder="ReservaCreada" /></label><button class="btn" type="submit">Filtrar</button></form>
         <div class="tabla-scroll tarjeta">
           <table class="tabla">
             <caption class="sr-only">Eventos de negocio</caption>
@@ -303,6 +303,8 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
     </div>
   `,
   styles: `.mt { margin-top: 1rem; } .filtro-inline { max-width: 240px; } pre { white-space: pre-wrap; font-size: .8rem; max-width: 420px; }
+    .busqueda-barra { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem; margin-bottom: 1rem; }
+    .busqueda-barra label { flex: 1 1 260px; max-width: 420px; } .busqueda-barra .btn { flex: 0 0 auto; }
     .filtros-aloj { align-items: flex-end; flex-wrap: wrap; } .acciones-fila { white-space: nowrap; } .acciones-fila .btn { margin: .1rem; }`,
 })
 export class AdminComponent implements OnInit {
