@@ -146,8 +146,11 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
       }
 
       @case ('usuarios') {
-        <form class="tarjeta" (ngSubmit)="crearUsuario()" novalidate>
-          <h2>Crear usuario</h2>
+        @if (!formUsuario()) {
+          <p><button class="btn" type="button" aria-expanded="false" aria-controls="form-usuario" (click)="abrirFormUsuario()">Agregar usuario</button></p>
+        } @else {
+        <form class="tarjeta" id="form-usuario" (ngSubmit)="crearUsuario()" novalidate>
+          <h2>Agregar usuario</h2>
           <p>Se crea activo y con rol de huésped; después puedes hacerlo administrador desde la tabla.</p>
           <div class="fila">
             <label>Correo <input name="ue" type="email" autocomplete="off" maxlength="160" [(ngModel)]="nuevoUsuario.email"
@@ -163,8 +166,12 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
           @if (nuevoUsuario.nombres && problemaUsuario().nombres; as p) { <p class="msg-campo msg-error" id="msg-u-nombres" role="alert"><span aria-hidden="true">✗</span> {{ p }}</p> }
           @if (nuevoUsuario.apellidos && problemaUsuario().apellidos; as p) { <p class="msg-campo msg-error" id="msg-u-apellidos" role="alert"><span aria-hidden="true">✗</span> {{ p }}</p> }
           @if (nuevoUsuario.password && problemaUsuario().password; as p) { <p class="msg-campo msg-error" id="msg-u-password" role="alert"><span aria-hidden="true">✗</span> {{ p }}</p> }
-          <button class="btn" type="submit" [disabled]="hayProblemaUsuario() || creandoUsuario()">{{ creandoUsuario() ? 'Creando…' : 'Crear usuario' }}</button>
+          <div class="fila">
+            <button class="btn" type="submit" [disabled]="hayProblemaUsuario() || creandoUsuario()">{{ creandoUsuario() ? 'Guardando…' : 'Guardar' }}</button>
+            <button class="btn" type="button" [disabled]="creandoUsuario()" (click)="cancelarFormUsuario()">Cancelar</button>
+          </div>
         </form>
+        }
         <form class="fila" (ngSubmit)="ir('usuarios')"><label>Buscar <input name="q" [(ngModel)]="busqueda" /></label><button class="btn" type="submit">Buscar</button></form>
         <div class="tabla-scroll tarjeta">
           <table class="tabla">
@@ -346,6 +353,8 @@ export class AdminComponent implements OnInit {
   nuevoUsuario = { email: '', nombres: '', apellidos: '', password: '' };
   /** Evita dobles envíos (doble clic / Enter) mientras el servidor procesa el alta. */
   readonly creandoUsuario = signal(false);
+  /** Panel «Agregar usuario» desplegado (oculto por defecto). */
+  readonly formUsuario = signal(false);
 
   ngOnInit(): void {
     // ?tab=alojamientos al volver del editor
@@ -523,6 +532,18 @@ export class AdminComponent implements OnInit {
     };
   }
 
+  abrirFormUsuario(): void {
+    this.error.set(null);
+    this.formUsuario.set(true);
+  }
+
+  cancelarFormUsuario(): void {
+    if (this.creandoUsuario()) return;
+    this.nuevoUsuario = { email: '', nombres: '', apellidos: '', password: '' };
+    this.error.set(null);
+    this.formUsuario.set(false);
+  }
+
   hayProblemaUsuario(): boolean {
     const p = this.problemaUsuario();
     return !!(p.email || p.nombres || p.apellidos || p.password);
@@ -541,6 +562,7 @@ export class AdminComponent implements OnInit {
           this.creandoUsuario.set(false);
           this.ok.mostrar('Usuario creado');
           this.nuevoUsuario = { email: '', nombres: '', apellidos: '', password: '' };
+          this.formUsuario.set(false);
           this.ir('usuarios');
         },
         error: (e) => {
