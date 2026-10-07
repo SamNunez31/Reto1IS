@@ -146,7 +146,7 @@ export class ObservabilidadComponent implements OnInit {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `posada-observability-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+      a.download = `posadaec-observability-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       this.avisar('Snapshot descargado.');
