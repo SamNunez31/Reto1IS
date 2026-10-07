@@ -6,7 +6,7 @@ import { invalido } from '../../common/problem/problem';
 import { JobsService, ResultadoJob } from '../jobs/jobs.service';
 import { AdminService } from './admin.service';
 import {
-  AmenidadDto, CerrarImpuestoDto, CiudadDto, EstadoAlojamientoDto, EstadoUsuarioDto, FiltroAlojamientosDto,
+  AmenidadDto, CerrarImpuestoDto, CiudadDto, CrearUsuarioDto, EstadoAlojamientoDto, EstadoUsuarioDto, FiltroAlojamientosDto,
   FiltroEventosDto, FiltroUsuariosDto, ImpuestoDto, RolUsuarioDto,
 } from './dto/admin.dto';
 
@@ -62,6 +62,12 @@ export class AdminController {
   @ApiOperation({ summary: 'Usuarios' })
   async usuarios(@Query() f: FiltroUsuariosDto): Promise<RespuestaApi<Listado<Fila>>> {
     return paginado(await this.admin.usuarios(f));
+  }
+
+  @Post('users')
+  @ApiOperation({ summary: 'Crear un usuario activo (rol USUARIO) con correo, nombres, apellidos y clave' })
+  async crearUsuario(@Body() dto: CrearUsuarioDto): Promise<RespuestaApi<Fila>> {
+    return ok(await this.admin.crearUsuario(dto), 'Usuario creado');
   }
 
   @Patch('users/:id/status')

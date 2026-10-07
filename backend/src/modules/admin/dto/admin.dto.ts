@@ -1,7 +1,8 @@
-import { IsBoolean, IsEnum, IsIn, IsNumber, IsOptional, IsString, Length, Matches, Max, MaxLength, Min, IsInt } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsIn, IsNumber, IsOptional, IsString, Length, Matches, Max, MaxLength, Min, IsInt } from 'class-validator';
 import { PaginacionDto } from '../../../common/dto/paginacion.dto';
 import { LATITUD_EC, LONGITUD_EC, Sanitizar } from '../../../common/validation/validadores-ec';
 import { FECHA, MSG_FECHA } from '../../alojamientos/dto/comunes.dto';
+import { aMinusculas, MENSAJE_NOMBRE, NOMBRE_PERSONA, POLITICA_CLAVE } from '../../auth/dto/auth.dto';
 
 export class EstadoAlojamientoDto {
   @IsIn(['PUBLICADO', 'SUSPENDIDO']) estado: 'PUBLICADO' | 'SUSPENDIDO';
@@ -20,6 +21,14 @@ export class FiltroAlojamientosDto extends PaginacionDto {
 
 export class EstadoUsuarioDto {
   @IsBoolean() activo: boolean;
+}
+
+/** Alta de usuario por el ADMIN: mismas reglas que el registro público. Siempre se crea ACTIVO con rol USUARIO (el rol no se recibe). */
+export class CrearUsuarioDto {
+  @aMinusculas() @IsEmail({}, { message: 'correo inválido' }) @MaxLength(160) email: string;
+  @IsString() @Matches(POLITICA_CLAVE, { message: 'la clave debe tener mínimo 8 caracteres, con mayúscula, minúscula y número' }) password: string;
+  @Sanitizar() @IsString() @Length(2, 80) @Matches(NOMBRE_PERSONA, { message: `nombres ${MENSAJE_NOMBRE}` }) nombres: string;
+  @Sanitizar() @IsString() @Length(2, 80) @Matches(NOMBRE_PERSONA, { message: `apellidos ${MENSAJE_NOMBRE}` }) apellidos: string;
 }
 
 /** Solo se permite promover a ADMIN (no hay degradación desde la API). */

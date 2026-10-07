@@ -1104,6 +1104,23 @@ paths:
         - Administración
       security:
         - bearer: []
+    post:
+      operationId: AdminController_crearUsuario
+      summary: Crear un usuario activo (rol USUARIO) con correo, nombres, apellidos y clave
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrearUsuarioDto'
+      responses:
+        '201':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
   /api/v1/admin/users/{id}/status:
     patch:
       operationId: AdminController_estadoUsuario
@@ -2855,6 +2872,30 @@ components:
             - SUSPENDIDO
       required:
         - estado
+    CrearUsuarioDto:
+      type: object
+      properties:
+        email:
+          type: string
+          maxLength: 160
+        password:
+          type: string
+          pattern: POLITICA_CLAVE
+        nombres:
+          type: string
+          minLength: 2
+          maxLength: 80
+          pattern: NOMBRE_PERSONA
+        apellidos:
+          type: string
+          minLength: 2
+          maxLength: 80
+          pattern: NOMBRE_PERSONA
+      required:
+        - email
+        - password
+        - nombres
+        - apellidos
     EstadoUsuarioDto:
       type: object
       properties:

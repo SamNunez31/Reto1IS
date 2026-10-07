@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import { UsuarioToken } from '../../common/auth/decorators';
 import { Listado } from '../../common/http/respuestas';
-import { conflicto, invalido, noEncontrado } from '../../common/problem/problem';
+import { conflicto, invalido, noEncontrado, ProblemException } from '../../common/problem/problem';
+import { esEmailDuplicado, MENSAJE_EMAIL_DUPLICADO, normalizarEmail } from '../../common/validation/email';
 import { DbService } from '../../database/db.service';
 import {
-  AmenidadDto, CiudadDto, FiltroAlojamientosDto, FiltroEventosDto, FiltroUsuariosDto,
+  AmenidadDto, CiudadDto, CrearUsuarioDto, FiltroAlojamientosDto, FiltroEventosDto, FiltroUsuariosDto,
   ImpuestoDto,
 } from './dto/admin.dto';
 
@@ -78,6 +80,29 @@ export class AdminService {
     const r = await this.db.query(`UPDATE usuario SET activo = $2 WHERE id = $1 RETURNING id`, [id, activo]);
     if (!r.length) throw noEncontrado('El usuario no existe');
     return { id, activo };
+  }
+
+  /**
+   * Alta de un usuario por el ADMIN: queda ACTIVO y con rol USUARIO (para dar rol ADMIN existe asignarRol).
+   * Misma política de clave, normalización de correo y bcrypt (costo 12) que el registro público; nunca devuelve el hash.
+   */
+  async crearUsuario(dto: CrearUsuarioDto): Promise<{ id: string; email: string; nombres: string; apellidos: string; rol: string; activo: boolean }> {
+    const email = String(normalizarEmail(dto.email));
+    const duplicado = () => new ProblemException(409, 'VALIDATION_FAILED', MENSAJE_EMAIL_DUPLICADO, [{ name: 'email', reason: MENSAJE_EMAIL_DUPLICADO }]);
+    if (await this.db.uno(`SELECT 1 FROM usuario WHERE email = $1`, [email])) throw duplicado();
+    const hash = await bcrypt.hash(dto.password, 12);
+    try {
+      const fila = await this.db.uno<{ id: string; email: string; nombres: string; apellidos: string; rol: string; activo: boolean }>(
+        `INSERT INTO usuario (email, password_hash, nombres, apellidos, rol, activo)
+         VALUES ($1, $2, $3, $4, 'USUARIO', true)
+         RETURNING id, email, nombres, apellidos, rol::text AS rol, activo`,
+        [email, hash, dto.nombres, dto.apellidos],
+      );
+      return fila as { id: string; email: string; nombres: string; apellidos: string; rol: string; activo: boolean };
+    } catch (e) {
+      if (esEmailDuplicado(e)) throw duplicado(); // dos altas simultáneas con el mismo correo
+      throw e;
+    }
   }
 
   /**

@@ -16,7 +16,7 @@ import { fechaMasDias } from '../../shared/fechas';
 import { indicePestana } from '../../shared/pestanas';
 import { fechaLarga, rangoCorto } from '../../shared/textos';
 import { FiltroDirective } from '../../shared/entrada';
-import { motivoNombreLugar, motivoRango } from '../../shared/validadores';
+import { motivoClave, motivoEmail, motivoNombre, motivoNombreLugar, motivoRango, normalizarEmail, normalizarNombre } from '../../shared/validadores';
 import { ConfirmarService } from '../../shared/confirmar';
 import { AlertaErrorComponent, CargandoComponent, EstadoComponent } from '../../shared/ui';
 
@@ -146,6 +146,25 @@ type Pestana = 'indicadores' | 'alojamientos' | 'reservas' | 'resenas' | 'usuari
       }
 
       @case ('usuarios') {
+        <form class="tarjeta" (ngSubmit)="crearUsuario()" novalidate>
+          <h2>Crear usuario</h2>
+          <p>Se crea activo y con rol de huésped; después puedes hacerlo administrador desde la tabla.</p>
+          <div class="fila">
+            <label>Correo <input name="ue" type="email" autocomplete="off" maxlength="160" [(ngModel)]="nuevoUsuario.email"
+                   [attr.aria-invalid]="!!nuevoUsuario.email && !!problemaUsuario().email" aria-describedby="msg-u-email" /></label>
+            <label>Nombres <input name="un" appFiltro="nombre" autocomplete="off" maxlength="80" [(ngModel)]="nuevoUsuario.nombres"
+                   [attr.aria-invalid]="!!nuevoUsuario.nombres && !!problemaUsuario().nombres" aria-describedby="msg-u-nombres" /></label>
+            <label>Apellidos <input name="ua" appFiltro="nombre" autocomplete="off" maxlength="80" [(ngModel)]="nuevoUsuario.apellidos"
+                   [attr.aria-invalid]="!!nuevoUsuario.apellidos && !!problemaUsuario().apellidos" aria-describedby="msg-u-apellidos" /></label>
+            <label>Contraseña <input name="up" type="password" autocomplete="new-password" maxlength="72" [(ngModel)]="nuevoUsuario.password"
+                   [attr.aria-invalid]="!!nuevoUsuario.password && !!problemaUsuario().password" aria-describedby="msg-u-password" /></label>
+          </div>
+          @if (nuevoUsuario.email && problemaUsuario().email; as p) { <p class="msg-campo msg-error" id="msg-u-email" role="alert"><span aria-hidden="true">✗</span> Correo: {{ p }}</p> }
+          @if (nuevoUsuario.nombres && problemaUsuario().nombres; as p) { <p class="msg-campo msg-error" id="msg-u-nombres" role="alert"><span aria-hidden="true">✗</span> {{ p }}</p> }
+          @if (nuevoUsuario.apellidos && problemaUsuario().apellidos; as p) { <p class="msg-campo msg-error" id="msg-u-apellidos" role="alert"><span aria-hidden="true">✗</span> {{ p }}</p> }
+          @if (nuevoUsuario.password && problemaUsuario().password; as p) { <p class="msg-campo msg-error" id="msg-u-password" role="alert"><span aria-hidden="true">✗</span> {{ p }}</p> }
+          <button class="btn" type="submit" [disabled]="hayProblemaUsuario()">Crear usuario</button>
+        </form>
         <form class="fila" (ngSubmit)="ir('usuarios')"><label>Buscar <input name="q" [(ngModel)]="busqueda" /></label><button class="btn" type="submit">Buscar</button></form>
         <div class="tabla-scroll tarjeta">
           <table class="tabla">
@@ -324,6 +343,7 @@ export class AdminComponent implements OnInit {
   nuevaCiudad = '';
   imp = { nombre: '', tipo: 'IVA', porcentaje: 8 as number | null, vigente_desde: '', vigente_hasta: '' };
   tocadoImp = { nombre: false, porcentaje: false, desde: false };
+  nuevoUsuario = { email: '', nombres: '', apellidos: '', password: '' };
 
   ngOnInit(): void {
     // ?tab=alojamientos al volver del editor
@@ -488,6 +508,38 @@ export class AdminComponent implements OnInit {
     );
     if (!si) return;
     this.accion(this.api.estadoUsuario(this.texto(u['id']), !u['activo']), desactivar ? 'Usuario desactivado' : 'Usuario activado', 'usuarios');
+  }
+
+  /** Mismas reglas que CrearUsuarioDto del backend (que vuelve a validar). */
+  problemaUsuario(): { email?: string; nombres?: string; apellidos?: string; password?: string } {
+    const u = this.nuevoUsuario;
+    return {
+      email: motivoEmail(u.email) ?? undefined,
+      nombres: motivoNombre(u.nombres, 'nombres') ?? undefined,
+      apellidos: motivoNombre(u.apellidos, 'apellidos') ?? undefined,
+      password: motivoClave(u.password) ?? undefined,
+    };
+  }
+
+  hayProblemaUsuario(): boolean {
+    const p = this.problemaUsuario();
+    return !!(p.email || p.nombres || p.apellidos || p.password);
+  }
+
+  crearUsuario(): void {
+    if (this.hayProblemaUsuario()) return;
+    const u = this.nuevoUsuario;
+    this.ok.limpiar();
+    this.api
+      .crearUsuario({ email: normalizarEmail(u.email), nombres: normalizarNombre(u.nombres), apellidos: normalizarNombre(u.apellidos), password: u.password })
+      .subscribe({
+        next: () => {
+          this.ok.mostrar('Usuario creado');
+          this.nuevoUsuario = { email: '', nombres: '', apellidos: '', password: '' };
+          this.ir('usuarios');
+        },
+        error: (e) => this.error.set(leerError(e)), // el formulario conserva lo escrito
+      });
   }
 
   async hacerAdmin(u: Fila): Promise<void> {

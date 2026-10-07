@@ -57,6 +57,9 @@ export class AdminService {
   estadoUsuario(id: string, activo: boolean): Observable<{ id: string; activo: boolean }> {
     return datos(this.http.patch<RespuestaApi<{ id: string; activo: boolean }>>(`${this.base}/users/${id}/status`, { activo }));
   }
+  crearUsuario(cuerpo: { email: string; nombres: string; apellidos: string; password: string }): Observable<Fila> {
+    return datos(this.http.post<RespuestaApi<Fila>>(`${this.base}/users`, cuerpo));
+  }
   asignarAdmin(id: string): Observable<{ id: string; rol: string }> {
     return datos(this.http.patch<RespuestaApi<{ id: string; rol: string }>>(`${this.base}/users/${id}/role`, { rol: 'ADMIN' }));
   }
