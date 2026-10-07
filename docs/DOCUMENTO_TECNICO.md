@@ -450,3 +450,37 @@ Disponible en la página pública **`/observabilidad`** (enlace en el pie) y en 
 **Limitaciones** (detalle en §10). Sin pasarela de pago ni SRI reales; sin broker ni entrega real de webhooks; rate limit y deduplicación del consumidor en memoria; pocas pruebas automáticas del backend y ninguna de las funciones SQL de precio y reembolso; no hay portal de anfitrión; *Eliminar* alojamiento es una suspensión, porque un borrado real (o un estado "archivado") requeriría cambiar el contrato.
 
 **Evolución a microservicios** (§6). Separar por dueño de datos: Catálogo, Órdenes, Facturación, Cuenta y Notificaciones, cada uno con su BD; las vistas cruzadas se convierten en proyecciones alimentadas por eventos; el publicador del outbox pasa a RabbitMQ (§15) y el backend actual queda como API Gateway. Lo primero a extraer serían Notificaciones y Webhooks, porque ya solo dependen de eventos.
+
+## 19. Pruebas de seguridad
+
+Pruebas **solo locales** (2026-10-06): backend `dist/main` en `http://localhost:3100` contra un Postgres 16 en Docker cargado con `01`, `02`, `03` y `datos_catalogo_extra.sql`. Nada contra Render, Vercel ni Supabase (el script se niega si la URL no es `localhost`). Batería: `backend/scripts/pruebas-seguridad.py` → **74 OK · 0 FALLA · 1 INFO**.
+
+| OWASP Top 10 (2021) | Prueba | Evidencia |
+|---|---|---|
+| **A01 Control de acceso** | Matriz endpoint × rol (anónimo, USUARIO, "anfitrión" = USUARIO dueño de alojamientos, ADMIN) e IDOR | `/me*` → 401 anónimo; `/admin/*` y `/host/*` → 403 a USUARIO y anfitrión, 200 a ADMIN. Una huésped contra la reserva de otro: ver, factura, historial, cancel-preview, modificar, cancelar y reseñar → **404**; la reserva de la víctima sigue CONFIRMADA |
+| **A07 Identificación y autenticación** | JWT y fuerza bruta | Sin token, basura, payload manipulado, expirado, firmado con otro secreto y `alg: none` → **401**; USUARIO en `/admin` → **403**. Login: mismo 401 y mensaje ("Correo o clave incorrectos") con correo existente o no; 6.º intento → **429** con `Retry-After: 60`; registro → 429 al 6.º |
+| **A03 Inyección** | SQLi y XSS | `sort_by`, `province`, `city`, `max_price` con SQL → **400** (DTO con enum/tipos); `q` y `busqueda` del admin con `' OR '1'='1` → 0 resultados (consultas parametrizadas); nombres con `<script>` → 400; descripción con `<img onerror>`/`<script>` se guarda **sin etiquetas** (`@Sanitizar`); el frontend no usa `innerHTML` (Angular escapa); URLs de imagen `javascript:`, `http:` y `data:` → **400** (solo `https`) |
+| **A04 Diseño inseguro / A08 Integridad** | Idempotencia y doble cobro | Sin `Idempotency-Key` → 400; misma clave → misma orden con `Idempotent-Replayed: true`; misma clave y otro cuerpo → 409; **otra clave con el mismo preview → la misma orden, 1 cobro y 1 factura**. Hallazgo corregido: ese reenvío reescribía el comprador de la factura ya emitida (ahora solo se toca la emitida en la misma transacción) |
+| **A05 Configuración insegura** | Cabeceras, CORS, Swagger, /health | helmet: CSP `default-src 'self'`, `nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: no-referrer`, CORP `same-site`, sin `X-Powered-By`; HSTS solo con `APP_ENV=production`. CORS: origen ajeno sin `Access-Control-Allow-Origin`, `http://localhost:4200` sí. `/api/docs-json` sin secretos; `/health` solo `status/app/db/timestamp` |
+| **A09 Registro y fallos** | Fugas en errores | JSON mal formado, UUID inválido, ruta inexistente, cuerpo > 100 kB (413) y entero enorme → 4xx con `application/problem+json`; **ninguna** de las 72 respuestas de error contiene stack, rutas, `node_modules` ni SQL; **ningún 500** |
+| **A06 Componentes vulnerables** | `npm audit` | Backend: 0 críticos, 40 altos; frontend: 2 críticos, 26 altos (antes 32). Casi todos en herramientas de desarrollo (Jest, Karma, CLI/build de Angular y Nest) y su arreglo exige versión mayor (Angular 21, NestJS 12, Jest 30): no se aplica. En ejecución: avisos de Angular (i18n, hidratación SSR) que la app no usa, y de `@nestjs/platform-express`/`swagger` (multer, js-yaml, lodash) también con salto mayor. Aplicado: `typescript-eslint` 8.71 (menor) |
+| **A02 Datos sensibles / secretos** | Repositorio e historial | `.env` ignorado; solo se versiona `.env.example` (sin valores). `git grep` y `git log --all -S/-G` de cadenas de conexión, JWT, `JWT_SECRET=`, `service_role`, `sbp_`: solo plantillas y `localhost` |
+
+**Hallazgos abiertos** (sin cambio de código en esta rama): (1) las cuentas demo, incluida la del ADMIN, usan la clave `Demo1234!`, publicada en el README y en `02_datos_demo.sql`: en un despliegue público hay que cambiar la clave del ADMIN o desactivar las cuentas demo. (2) Con `trust proxy 1` y acceso **directo** al backend, `X-Forwarded-For` falsificado evade el rate limit; detrás de un único proxy (Render) la IP real es la última del encabezado, pero conviene verificarlo en el despliegue.
+
+**Cómo repetirlas** (desde la raíz):
+
+```bash
+# ESLint (sin --fix) y pruebas
+cd backend && npm run lint && npm test && npm run build && cd ..
+cd frontend && npm run lint && npx ng test --watch=false --browsers=ChromeHeadless && npm run build && cd ..
+# BD Docker temporal + backend local en :3100 (no toca el .env ni Supabase)
+docker run -d --name pg_seg -e POSTGRES_PASSWORD=segpass -e POSTGRES_DB=booking_db -p 55432:5432 postgres:16
+for f in 01_esquema 02_datos_demo 03_integracion datos_catalogo_extra; do docker exec -i pg_seg psql -U postgres -d booking_db -q < database/$f.sql; done
+cd backend && DATABASE_URL=postgresql://postgres:segpass@localhost:55432/booking_db PORT=3100 APP_ENV=development \
+  JWT_SECRET=seguridad-local-0123456789abcdefghijklmnopqrstuvwxyz-ABCDEFG CORS_ORIGINS=http://localhost:4200 JOBS_ENABLED=false node dist/main &
+python scripts/pruebas-seguridad.py http://localhost:3100 seguridad-local-0123456789abcdefghijklmnopqrstuvwxyz-ABCDEFG
+# npm audit y secretos
+(cd backend && npm audit) ; (cd frontend && npm audit) ; git log --all -S "JWT_SECRET=" --oneline
+docker rm -f pg_seg
+```
