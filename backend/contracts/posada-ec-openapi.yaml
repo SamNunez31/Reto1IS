@@ -1,0 +1,2948 @@
+# Contrato propio de Posada EC — generado con `npm run docs:openapi` + `npm run contract:export`.
+# No editar a mano: se regenera desde la API real. El contrato oficial es alojamientos-openapi.yaml.
+openapi: 3.0.0
+paths:
+  /health:
+    get:
+      operationId: HealthController_health
+      summary: Estado de la app y de la BD (SELECT 1)
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Salud
+  /api/v1/auth/register:
+    post:
+      operationId: AuthController_register
+      summary: Registrar cuenta (rol USUARIO)
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDto'
+      responses:
+        '201':
+          description: Cuenta creada y sesión iniciada
+      tags:
+        - Autenticación
+  /api/v1/auth/login:
+    post:
+      operationId: AuthController_login
+      summary: 'Iniciar sesión: devuelve un JWT (Bearer) con claim scope'
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginDto'
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Autenticación
+  /api/v1/auth/forgot-password:
+    post:
+      operationId: AuthController_forgot
+      summary: Solicitar enlace de recuperación (respuesta siempre genérica)
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordDto'
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Autenticación
+  /api/v1/auth/reset-password:
+    post:
+      operationId: AuthController_reset
+      summary: Restablecer la clave con el token recibido
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordDto'
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Autenticación
+  /api/v1/search:
+    post:
+      operationId: AlojamientosController_search
+      summary: Búsqueda de alojamientos
+      parameters:
+        - name: X-Device-Fingerprint
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchAccommodationRequestDto'
+      responses:
+        '200':
+          description: Alojamientos encontrados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchAccommodationResponse'
+        '400':
+          description: Petición inválida (ProblemDetails)
+        '429':
+          description: Demasiadas peticiones (ProblemDetails + Retry-After)
+      tags:
+        - Búsqueda y Catálogo
+  /api/v1/availability:
+    post:
+      operationId: AlojamientosController_availability
+      summary: Consultar disponibilidad y precio de un alojamiento
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AvailabilityRequestDto'
+      responses:
+        '200':
+          description: Disponibilidad y detalles del precio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityResponse'
+        '400':
+          description: Petición inválida (ProblemDetails)
+      tags:
+        - Disponibilidad y Precios
+  /api/v1/bulk-availability:
+    post:
+      operationId: AlojamientosController_bulkAvailability
+      summary: Consultar disponibilidad múltiple de alojamientos
+      description: filters.meal_plan no está soportado y se ignora.
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkAvailabilityRequestDto'
+      responses:
+        '200':
+          description: Disponibilidad para múltiples alojamientos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkAvailabilityResponse'
+      tags:
+        - Disponibilidad y Precios
+  /api/v1/details:
+    post:
+      operationId: AlojamientosController_getDetails
+      summary: Obtener detalles extendidos de los alojamientos
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccommodationDetailsRequestDto'
+      responses:
+        '200':
+          description: Detalles de los alojamientos solicitados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccommodationDetailsResponse'
+      tags:
+        - Búsqueda y Catálogo
+  /api/v1/details/changes:
+    post:
+      operationId: AlojamientosController_getDetailsChanges
+      summary: Obtener alojamientos que han cambiado desde una fecha
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DetailsChangesRequestDto'
+      responses:
+        '200':
+          description: Lista de alojamientos modificados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailsChangesResponse'
+        '401':
+          description: Falta token o es inválido (ProblemDetails)
+      security:
+        - OAuth2Security:
+            - alojamientos:read
+      tags:
+        - Búsqueda y Catálogo
+  /api/v1/chains:
+    post:
+      operationId: AlojamientosController_getChains
+      summary: Listar cadenas hoteleras y sus marcas
+      description: 'El prototipo no maneja cadenas: devuelve [].'
+      parameters: []
+      responses:
+        '200':
+          description: Lista de cadenas hoteleras
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChainsResponse'
+      tags:
+        - Búsqueda y Catálogo
+  /api/v1/constants:
+    post:
+      operationId: AlojamientosController_getConstants
+      summary: Consultar constantes del sistema (facilidades, tipos de cuartos, etc.)
+      parameters: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConstantsRequestDto'
+      responses:
+        '200':
+          description: Constantes del sistema
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstantsResponse'
+      tags:
+        - Componentes Comunes
+  /api/v1/reviews:
+    post:
+      operationId: AlojamientosController_getReviews
+      summary: Obtener reseñas de alojamientos
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewsRequestDto'
+      responses:
+        '200':
+          description: Reseñas de los alojamientos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewsResponse'
+      tags:
+        - Búsqueda y Catálogo
+  /api/v1/reviews/scores:
+    post:
+      operationId: AlojamientosController_getReviewsScores
+      summary: Obtener puntuaciones de reseñas
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewsScoresRequestDto'
+      responses:
+        '200':
+          description: Puntuaciones desglosadas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewsScoresResponse'
+      tags:
+        - Búsqueda y Catálogo
+  /api/v1/orders/preview:
+    post:
+      operationId: AlojamientosController_previewOrder
+      summary: Previsualizar orden antes de confirmar
+      description: Congela el precio por 15 minutos.
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderPreviewRequestDto'
+      responses:
+        '200':
+          description: Detalles de la orden previsualizada y precios finales
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderPreviewResponse'
+        '400':
+          description: Petición inválida (ProblemDetails)
+        '403':
+          description: Scope o rol insuficiente (ProblemDetails)
+        '409':
+          description: 'Conflicto: ROOM_NO_LONGER_AVAILABLE, PRICE_CHANGED (+Retry-After)… (ProblemDetails)'
+      security:
+        - OAuth2Security:
+            - alojamientos:read
+      tags:
+        - Gestión de Órdenes (Reservas)
+  /api/v1/orders/create:
+    post:
+      operationId: AlojamientosController_createOrder
+      summary: Crear reserva de alojamiento
+      description: 'Pago simulado: payment_reference ^PAY-[A-Z0-9]{6,}$; PAY-DECLINED… se rechaza (402 PAYMENT_NOT_AUTHORIZED).'
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          description: UUID v4 para evitar cobros duplicados
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCreateRequestDto'
+      responses:
+        '201':
+          description: Orden creada exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetail'
+        '400':
+          description: Petición inválida (ProblemDetails)
+        '402':
+          description: PAYMENT_NOT_AUTHORIZED (ProblemDetails)
+        '409':
+          description: 'Conflicto: ROOM_NO_LONGER_AVAILABLE, PRICE_CHANGED (+Retry-After)… (ProblemDetails)'
+      security:
+        - OAuth2Security:
+            - alojamientos:book
+      tags:
+        - Gestión de Órdenes (Reservas)
+  /api/v1/orders/{orderId}:
+    get:
+      operationId: AlojamientosController_getOrder
+      summary: Obtener detalles de la orden
+      parameters:
+        - name: orderId
+          required: true
+          in: path
+          schema:
+            format: uuid
+            type: string
+      responses:
+        '200':
+          description: Detalles completos de la orden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetail'
+        '404':
+          description: No encontrado (ProblemDetails)
+      security:
+        - OAuth2Security:
+            - alojamientos:read
+      tags:
+        - Gestión de Órdenes (Reservas)
+  /api/v1/orders/{orderId}/modify:
+    post:
+      operationId: AlojamientosController_modifyOrder
+      summary: Modificar una orden existente
+      parameters:
+        - name: orderId
+          required: true
+          in: path
+          schema:
+            format: uuid
+            type: string
+        - name: Idempotency-Key
+          in: header
+          description: UUID v4 para evitar modificaciones duplicadas
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderModifyRequestDto'
+      responses:
+        '200':
+          description: Orden modificada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetail'
+        '409':
+          description: 'Conflicto: ROOM_NO_LONGER_AVAILABLE, PRICE_CHANGED (+Retry-After)… (ProblemDetails)'
+      security:
+        - OAuth2Security:
+            - alojamientos:book
+      tags:
+        - Gestión de Órdenes (Reservas)
+  /api/v1/orders/{orderId}/cancel:
+    post:
+      operationId: AlojamientosController_cancelOrder
+      summary: Cancelar una orden
+      parameters:
+        - name: orderId
+          required: true
+          in: path
+          schema:
+            format: uuid
+            type: string
+        - name: Idempotency-Key
+          in: header
+          description: UUID v4 para evitar cancelaciones duplicadas
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cancelación procesada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelacionResultado'
+        '409':
+          description: 'Conflicto: ROOM_NO_LONGER_AVAILABLE, PRICE_CHANGED (+Retry-After)… (ProblemDetails)'
+      security:
+        - OAuth2Security:
+            - alojamientos:cancel
+      tags:
+        - Gestión de Órdenes (Reservas)
+  /api/v1/webhooks:
+    get:
+      operationId: AlojamientosController_listWebhooks
+      summary: Listar suscripciones
+      parameters: []
+      responses:
+        '200':
+          description: Suscripciones activas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WebhookSubscription'
+      security:
+        - OAuth2Security:
+            - alojamientos:webhooks
+      tags:
+        - Webhooks
+    post:
+      operationId: AlojamientosController_createWebhook
+      summary: Registrar webhook
+      description: Solo https. El secreto (32 bytes) se muestra únicamente en esta respuesta.
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookSubscriptionDto'
+      responses:
+        '201':
+          description: Webhook registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSubscription'
+      security:
+        - OAuth2Security:
+            - alojamientos:webhooks
+      tags:
+        - Webhooks
+  /api/v1/webhooks/{id}:
+    delete:
+      operationId: AlojamientosController_deleteWebhook
+      summary: Eliminar suscripción
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            format: uuid
+            type: string
+      responses:
+        '204':
+          description: Eliminado
+      security:
+        - OAuth2Security:
+            - alojamientos:webhooks
+      tags:
+        - Webhooks
+  /api/v1/me:
+    get:
+      operationId: CuentaController_me
+      summary: Mi perfil
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Mi cuenta
+      security:
+        - bearer: []
+    patch:
+      operationId: CuentaController_actualizar
+      summary: Actualizar mi perfil (datos de facturación incluidos)
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActualizarPerfilDto'
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Mi cuenta
+      security:
+        - bearer: []
+  /api/v1/me/orders:
+    get:
+      operationId: CuentaController_misOrdenes
+      summary: Mis reservas
+      parameters:
+        - name: limit
+          required: true
+          in: query
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 20
+            type: number
+        - name: offset
+          required: true
+          in: query
+          schema:
+            minimum: 0
+            default: 0
+            type: number
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Mi cuenta
+      security:
+        - bearer: []
+  /api/v1/orders/{id}/invoice:
+    get:
+      operationId: CuentaController_factura
+      summary: Factura simulada de la reserva (v_factura)
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Mi cuenta
+      security:
+        - bearer: []
+  /api/v1/orders/{id}/timeline:
+    get:
+      operationId: CuentaController_timeline
+      summary: Trazabilidad de la reserva (dueño, anfitrión o ADMIN)
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Mi cuenta
+      security:
+        - bearer: []
+  /api/v1/orders/{id}/cancel-preview:
+    get:
+      operationId: CuentaController_previewCancelacion
+      summary: Previsualizar penalidad y reembolso de una cancelación
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Mi cuenta
+      security:
+        - bearer: []
+  /api/v1/orders/{id}/review:
+    post:
+      operationId: CuentaController_resena
+      summary: Reseñar una estancia completada
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrearResenaDto'
+      responses:
+        '201':
+          description: ''
+      tags:
+        - Mi cuenta
+      security:
+        - bearer: []
+  /api/v1/host/accommodations:
+    get:
+      operationId: HostController_lista
+      summary: Mis alojamientos
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+    post:
+      operationId: HostController_crear
+      summary: Crear alojamiento (queda en BORRADOR)
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrearAlojamientoDto'
+      responses:
+        '201':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+  /api/v1/host/accommodations/{codigo}:
+    get:
+      operationId: HostController_obtener
+      summary: Detalle editable de mi alojamiento
+      parameters:
+        - name: codigo
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+    patch:
+      operationId: HostController_actualizar
+      summary: Editar mi alojamiento
+      parameters:
+        - name: codigo
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActualizarAlojamientoDto'
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+  /api/v1/host/accommodations/{codigo}/publish:
+    post:
+      operationId: HostController_publicar
+      summary: Publicar (requiere unidad activa y foto)
+      parameters:
+        - name: codigo
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+  /api/v1/host/accommodations/{codigo}/unpublish:
+    post:
+      operationId: HostController_despublicar
+      summary: Despublicar (vuelve a BORRADOR)
+      parameters:
+        - name: codigo
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+  /api/v1/host/accommodations/{codigo}/units:
+    get:
+      operationId: HostController_unidades
+      summary: Unidades (habitaciones/tipos) de mi alojamiento
+      parameters:
+        - name: codigo
+          required: true
+          in: path
+          schema:
+            type: number
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+    post:
+      operationId: HostController_crearUnidad
+      summary: Agregar unidad
+      parameters:
+        - name: codigo
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnidadDto'
+      responses:
+        '201':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+  /api/v1/host/units/{id}:
+    patch:
+      operationId: HostController_actualizarUnidad
+      summary: Editar o desactivar una unidad
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActualizarUnidadDto'
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+  /api/v1/host/units/{id}/calendar:
+    get:
+      operationId: HostController_calendario
+      summary: Calendario de precio y cupo (máx. 93 días)
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: desde
+          required: true
+          in: query
+          schema:
+            pattern: FECHA
+            type: string
+        - name: hasta
+          required: true
+          in: query
+          schema:
+            pattern: FECHA
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+    put:
+      operationId: HostController_guardarCalendario
+      summary: Guardar precios especiales / cupo por día
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalendarioDto'
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+  /api/v1/host/orders:
+    get:
+      operationId: HostController_reservas
+      summary: Reservas de los alojamientos del catálogo
+      parameters:
+        - name: estado
+          required: false
+          in: query
+          schema:
+            enum:
+              - PENDIENTE
+              - CONFIRMADA
+              - CANCELADA
+              - RECHAZADA
+              - EXPIRADA
+              - COMPLETADA
+            type: string
+        - name: estado_pago
+          required: false
+          in: query
+          description: PENDIENTE = pago en efectivo aún no recibido; APROBADO = cobrado
+          schema:
+            enum:
+              - PENDIENTE
+              - APROBADO
+            type: string
+        - name: limit
+          required: true
+          in: query
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 20
+            type: number
+        - name: offset
+          required: true
+          in: query
+          schema:
+            minimum: 0
+            default: 0
+            type: number
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+  /api/v1/host/orders/{id}:
+    get:
+      operationId: HostController_reserva
+      summary: Detalle de una reserva (incluye método y estado del pago)
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+  /api/v1/host/orders/{id}/confirm-payment:
+    post:
+      operationId: HostController_confirmarPago
+      summary: Confirmar que se recibió el pago en efectivo
+      description: >-
+        Marca como APROBADO el pago PENDIENTE en efectivo de la reserva. Idempotente: si ya estaba confirmado responde
+        200 con ya_confirmado=true. 409 si la reserva no se paga en efectivo o está cancelada. Queda registrado en la
+        auditoría.
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+        '409':
+          description: La reserva no tiene un pago en efectivo que confirmar
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+  /api/v1/host/income:
+    get:
+      operationId: HostController_ingresos
+      summary: Ingresos por mes (v_ingresos_anfitrion)
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+  /api/v1/host/reviews:
+    get:
+      operationId: HostController_resenas
+      summary: Reseñas de mis alojamientos
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+  /api/v1/host/reviews/{id}/reply:
+    post:
+      operationId: HostController_responderResena
+      summary: Responder una reseña
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResponderResenaDto'
+      responses:
+        '201':
+          description: ''
+      tags:
+        - Catálogo (ADMIN)
+      security:
+        - bearer: []
+  /api/v1/admin/indicators:
+    get:
+      operationId: AdminController_indicadores
+      summary: Indicadores generales (v_admin_indicadores)
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+  /api/v1/admin/sales-by-city:
+    get:
+      operationId: AdminController_ventas
+      summary: Ventas por ciudad (v_ventas_por_ciudad)
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+  /api/v1/admin/top-accommodations:
+    get:
+      operationId: AdminController_top
+      summary: Top 10 alojamientos (v_top_alojamientos)
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+  /api/v1/admin/accommodations:
+    get:
+      operationId: AdminController_alojamientos
+      summary: Todos los alojamientos (filtro por estado y búsqueda por nombre, ciudad o código)
+      parameters:
+        - name: estado
+          required: false
+          in: query
+          schema:
+            enum:
+              - BORRADOR
+              - PUBLICADO
+              - SUSPENDIDO
+            type: string
+        - name: q
+          required: false
+          in: query
+          description: Busca en nombre, ciudad o código
+          schema:
+            maxLength: 80
+            type: string
+        - name: limit
+          required: true
+          in: query
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 20
+            type: number
+        - name: offset
+          required: true
+          in: query
+          schema:
+            minimum: 0
+            default: 0
+            type: number
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+  /api/v1/admin/accommodations/{codigo}/status:
+    patch:
+      operationId: AdminController_estadoAlojamiento
+      summary: Suspender o reactivar un alojamiento
+      parameters:
+        - name: codigo
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EstadoAlojamientoDto'
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+  /api/v1/admin/users:
+    get:
+      operationId: AdminController_usuarios
+      summary: Usuarios
+      parameters:
+        - name: q
+          required: false
+          in: query
+          description: Busca en correo, nombres o apellidos
+          schema:
+            maxLength: 80
+            type: string
+        - name: limit
+          required: true
+          in: query
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 20
+            type: number
+        - name: offset
+          required: true
+          in: query
+          schema:
+            minimum: 0
+            default: 0
+            type: number
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+  /api/v1/admin/users/{id}/status:
+    patch:
+      operationId: AdminController_estadoUsuario
+      summary: Activar o desactivar un usuario
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EstadoUsuarioDto'
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+  /api/v1/admin/users/{id}/role:
+    patch:
+      operationId: AdminController_rolUsuario
+      summary: Asignar el rol de administrador a otro usuario (el usuario debe volver a iniciar sesión)
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RolUsuarioDto'
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+  /api/v1/admin/catalogs:
+    get:
+      operationId: AdminController_catalogos
+      summary: 'Catálogos: tipos, amenidades, políticas, ciudades'
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+  /api/v1/admin/catalogs/amenities:
+    post:
+      operationId: AdminController_amenidad
+      summary: Agregar amenidad
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AmenidadDto'
+      responses:
+        '201':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+  /api/v1/admin/catalogs/cities:
+    post:
+      operationId: AdminController_ciudad
+      summary: Agregar ciudad
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CiudadDto'
+      responses:
+        '201':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+  /api/v1/admin/taxes:
+    get:
+      operationId: AdminController_impuestos
+      summary: Tarifas de IVA/servicio y feriados
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+    post:
+      operationId: AdminController_crearImpuesto
+      summary: 'Registrar tarifa (p. ej. feriado con IVA reducido: aplica a todos los alojamientos en esas fechas)'
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImpuestoDto'
+      responses:
+        '201':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+  /api/v1/admin/taxes/{id}:
+    patch:
+      operationId: AdminController_cerrarImpuesto
+      summary: Cerrar la vigencia de una tarifa
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CerrarImpuestoDto'
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+  /api/v1/admin/events:
+    get:
+      operationId: AdminController_eventos
+      summary: Eventos de negocio (outbox)
+      parameters:
+        - name: tipo
+          required: false
+          in: query
+          schema:
+            maxLength: 60
+            type: string
+        - name: limit
+          required: true
+          in: query
+          schema:
+            minimum: 1
+            maximum: 100
+            default: 20
+            type: number
+        - name: offset
+          required: true
+          in: query
+          schema:
+            minimum: 0
+            default: 0
+            type: number
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+  /api/v1/admin/jobs/{nombre}/ejecutar:
+    post:
+      operationId: AdminController_ejecutar
+      summary: 'Ejecutar un job: completar-estancias, publicar-outbox, purgar-idempotencia'
+      parameters:
+        - name: nombre
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Administración
+      security:
+        - bearer: []
+info:
+  title: Posada EC — Alojamientos API (contrato propio)
+  description: >-
+    Contrato propio del servicio de Alojamientos de Posada EC. Incluye las 17 operaciones del contrato oficial
+    (backend/contracts/alojamientos-openapi.yaml, sin modificar) y las rutas propias: autenticación, cuenta, catálogo
+    del anfitrión/admin (/host/*), administración (/admin/*) y salud. Generado desde la API real; los errores usan
+    application/problem+json (ProblemDetails).
+  version: 1.0.0
+  contact: {}
+tags:
+  - name: Búsqueda y Catálogo
+    description: ''
+  - name: Disponibilidad y Precios
+    description: ''
+  - name: Gestión de Órdenes (Reservas)
+    description: ''
+  - name: Componentes Comunes
+    description: ''
+  - name: Webhooks
+    description: ''
+  - name: Autenticación
+    description: 'Ruta propia: registro, login y recuperación de clave'
+  - name: Mi cuenta
+    description: 'Ruta propia: perfil, mis reservas, factura, trazabilidad y reseñas'
+  - name: Catálogo (ADMIN)
+    description: 'Ruta propia: el ADMIN crea, edita, publica y despublica los alojamientos de Posada EC'
+  - name: Administración
+    description: 'Ruta propia: panel del ADMIN'
+  - name: Salud
+    description: ''
+servers:
+  - url: /
+    description: Este servidor
+components:
+  securitySchemes:
+    OAuth2Security:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://auth.booking-hub.com/oauth2/authorize
+          tokenUrl: https://auth.booking-hub.com/oauth2/token
+          scopes:
+            alojamientos:read: Leer información de alojamientos, disponibilidades y reservas
+            alojamientos:book: Crear y alterar reservas
+            alojamientos:cancel: Cancelar reservas
+            alojamientos:webhooks: Gestionar webhooks
+        clientCredentials:
+          tokenUrl: https://auth.booking-hub.com/oauth2/token
+          scopes:
+            alojamientos:read: Leer información de alojamientos, disponibilidades y reservas
+            alojamientos:book: Crear y alterar reservas
+            alojamientos:cancel: Cancelar reservas
+            alojamientos:webhooks: Gestionar webhooks
+      description: OAuth2 del contrato. En este prototipo el token Bearer se emite en /api/v1/auth/login.
+    bearer:
+      scheme: bearer
+      bearerFormat: JWT
+      type: http
+  schemas:
+    RegisterDto:
+      type: object
+      properties:
+        email:
+          type: string
+          maxLength: 160
+        password:
+          type: string
+          pattern: POLITICA_CLAVE
+        nombres:
+          type: string
+          minLength: 2
+          maxLength: 80
+          pattern: NOMBRE_PERSONA
+        apellidos:
+          type: string
+          minLength: 2
+          maxLength: 80
+          pattern: NOMBRE_PERSONA
+        telefono:
+          type: string
+          pattern: TELEFONO_EC
+        tipo_documento:
+          type: string
+          enum:
+            - CEDULA
+            - RUC
+            - PASAPORTE
+        numero_documento:
+          type: string
+      required:
+        - email
+        - password
+        - nombres
+        - apellidos
+    LoginDto:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+          minLength: 1
+          maxLength: 72
+      required:
+        - email
+        - password
+    ForgotPasswordDto:
+      type: object
+      properties:
+        email:
+          type: string
+      required:
+        - email
+    ResetPasswordDto:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Token de 32 bytes en hexadecimal recibido por "correo"
+          minLength: 64
+          maxLength: 64
+        password:
+          type: string
+          pattern: POLITICA_CLAVE
+      required:
+        - token
+        - password
+    BookerDto:
+      type: object
+      properties:
+        country:
+          type: string
+          description: Código ISO 3166-1 alpha-2 del país del comprador (solo "ec")
+          enum:
+            - ec
+          pattern: /^[a-z]{2}$/
+        platform:
+          type: string
+          enum:
+            - android
+            - desktop
+            - ios
+            - mobile
+            - tablet
+        state:
+          type: string
+          pattern: /^[a-z]{2}$/
+        travel_purpose:
+          type: string
+          enum:
+            - business
+            - leisure
+        user_groups:
+          type: string
+          enum:
+            - authenticated
+      required:
+        - country
+        - platform
+    AsignacionDto:
+      type: object
+      properties:
+        adults:
+          type: number
+          minimum: 0
+        children:
+          type: array
+          items:
+            type: number
+    HuespedesDto:
+      type: object
+      properties:
+        number_of_adults:
+          type: number
+          minimum: 1
+          maximum: 30
+        number_of_rooms:
+          type: number
+          minimum: 1
+          maximum: 20
+        children:
+          description: Edades de los niños
+          type: array
+          items:
+            type: number
+            maximum: 17
+            minimum: 0
+        allocation:
+          type: array
+          items:
+            $ref: '#/components/schemas/AsignacionDto'
+      required:
+        - number_of_adults
+        - number_of_rooms
+    SearchAccommodationRequestDto:
+      type: object
+      properties:
+        booker:
+          $ref: '#/components/schemas/BookerDto'
+        checkin:
+          type: string
+          pattern: FECHA
+        checkout:
+          type: string
+          pattern: FECHA
+        city:
+          type: number
+          description: Id de ciudad (catálogo /constants)
+          minimum: 1
+        country:
+          type: string
+          enum:
+            - ec
+          pattern: /^[a-z]{2}$/
+        guests:
+          $ref: '#/components/schemas/HuespedesDto'
+        extras:
+          type: array
+          items:
+            type: string
+            enum:
+              - extra_charges
+              - products
+        rows:
+          type: number
+          default: 100
+          minimum: 10
+          maximum: 100
+        page:
+          type: string
+          description: Cursor opaco devuelto en next_page
+          minLength: 1
+          maxLength: 200
+        province:
+          type: string
+          minLength: 3
+          maxLength: 40
+        accommodation_type:
+          type: number
+          description: 'Extensión: id de tipo de alojamiento'
+          minimum: 1
+        max_price:
+          type: number
+          description: 'Extensión: precio máximo por noche (USD)'
+          minimum: 0
+        min_stars:
+          type: number
+          description: 'Extensión: estrellas mínimas'
+          minimum: 1
+          maximum: 5
+        sort_by:
+          type: string
+          description: 'Extensión: criterio de orden'
+          enum:
+            - relevancia
+            - precio_asc
+            - precio_desc
+            - calificacion
+        currency:
+          type: string
+          enum:
+            - USD
+          pattern: /^[A-Z]{3}$/
+      required:
+        - booker
+        - checkin
+        - checkout
+        - guests
+    ItemBusqueda:
+      type: object
+      properties:
+        id:
+          type: number
+          description: Código entero del alojamiento
+        url:
+          type: string
+      required:
+        - id
+        - url
+    SearchAccommodationResponse:
+      type: object
+      properties:
+        next_page:
+          type: string
+          nullable: true
+        request_id:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemBusqueda'
+      required:
+        - next_page
+        - request_id
+        - data
+    AvailabilityRequestDto:
+      type: object
+      properties:
+        accommodation:
+          type: number
+          description: Código entero del alojamiento
+          minimum: 1
+        booker:
+          $ref: '#/components/schemas/BookerDto'
+        checkin:
+          type: string
+          pattern: FECHA
+        checkout:
+          type: string
+          pattern: FECHA
+        guests:
+          $ref: '#/components/schemas/HuespedesDto'
+        extras:
+          type: array
+          items:
+            type: string
+            enum:
+              - extra_charges
+              - include_bundle_variants
+        currency:
+          type: string
+          enum:
+            - USD
+          pattern: /^[A-Z]{3}$/
+      required:
+        - accommodation
+        - booker
+        - checkin
+        - checkout
+        - guests
+    Precio:
+      type: object
+      properties:
+        base:
+          type: number
+          description: Hospedaje (noches x unidades)
+        service_fee:
+          type: number
+        taxes:
+          type: number
+          description: IVA total (incluye IVA de limpieza)
+        cleaning_fee:
+          type: number
+        total:
+          type: number
+      required:
+        - base
+        - service_fee
+        - taxes
+        - cleaning_fee
+        - total
+    ReglaCancelacion:
+      type: object
+      properties:
+        hours_before:
+          type: number
+        penalty_percent:
+          type: number
+      required:
+        - hours_before
+        - penalty_percent
+    PoliticaCancelacion:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReglaCancelacion'
+      required:
+        - name
+        - description
+        - rules
+    Producto:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 'Opaco: base64url de unidad|checkin|checkout'
+        name:
+          type: string
+        max_occupancy:
+          type: number
+        available_rooms:
+          type: number
+        nights:
+          type: number
+        price:
+          $ref: '#/components/schemas/Precio'
+        cancellation_policy:
+          $ref: '#/components/schemas/PoliticaCancelacion'
+      required:
+        - id
+        - name
+        - max_occupancy
+        - available_rooms
+        - nights
+        - price
+        - cancellation_policy
+    DatosDisponibilidad:
+      type: object
+      properties:
+        id:
+          type: number
+        currency:
+          type: string
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/Producto'
+        url:
+          type: string
+      required:
+        - id
+        - currency
+        - products
+        - url
+    AvailabilityResponse:
+      type: object
+      properties:
+        request_id:
+          type: string
+        data:
+          $ref: '#/components/schemas/DatosDisponibilidad'
+      required:
+        - request_id
+        - data
+    FiltrosBulkDto:
+      type: object
+      properties:
+        meal_plan:
+          type: string
+          description: 'No soportado: el prototipo no maneja planes de comida (se ignora)'
+        cancellation_type:
+          type: string
+          description: 'Nombre de política: FLEXIBLE, MODERADA o NO_REEMBOLSABLE'
+    BulkAvailabilityRequestDto:
+      type: object
+      properties:
+        accommodations:
+          type: array
+          items:
+            type: number
+        booker:
+          $ref: '#/components/schemas/BookerDto'
+        checkin:
+          type: string
+          pattern: FECHA
+        checkout:
+          type: string
+          pattern: FECHA
+        guests:
+          $ref: '#/components/schemas/HuespedesDto'
+        filters:
+          $ref: '#/components/schemas/FiltrosBulkDto'
+        extras:
+          type: array
+          items:
+            type: string
+        currency:
+          type: string
+          enum:
+            - USD
+          pattern: /^[A-Z]{3}$/
+      required:
+        - accommodations
+        - booker
+        - checkin
+        - checkout
+        - guests
+    DisponibilidadAlojamiento:
+      type: object
+      properties:
+        cheapest_product:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/Producto'
+        id:
+          type: number
+        currency:
+          type: string
+        available:
+          type: boolean
+        url:
+          type: string
+      required:
+        - id
+        - currency
+        - available
+        - url
+    BulkAvailabilityResponse:
+      type: object
+      properties:
+        request_id:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DisponibilidadAlojamiento'
+      required:
+        - request_id
+        - data
+    AccommodationDetailsRequestDto:
+      type: object
+      properties:
+        accommodations:
+          type: array
+          items:
+            type: number
+        city:
+          type: number
+          minimum: 1
+        country:
+          type: string
+        extras:
+          type: array
+          items:
+            type: string
+            enum:
+              - description
+              - bundles
+              - facilities
+              - payment
+              - photos
+              - policies
+              - rooms
+        page:
+          type: string
+          description: 'Extensión: cursor de página'
+          minLength: 1
+          maxLength: 200
+        rows:
+          type: number
+          description: 'Extensión: filas por página (1-100, por defecto 20)'
+          minimum: 1
+          maximum: 100
+        languages:
+          description: Solo "es"
+          type: array
+          items:
+            type: string
+    CiudadRef:
+      type: object
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        province:
+          type: string
+      required:
+        - id
+        - name
+        - province
+    Ubicacion:
+      type: object
+      properties:
+        address:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+      required:
+        - address
+        - latitude
+        - longitude
+    Calificacion:
+      type: object
+      properties:
+        score:
+          type: number
+          nullable: true
+        reviews:
+          type: number
+      required:
+        - score
+        - reviews
+    Facilidad:
+      type: object
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        category:
+          type: string
+      required:
+        - id
+        - name
+        - category
+    MetodosPago:
+      type: object
+      properties:
+        methods:
+          type: array
+          items:
+            type: string
+      required:
+        - methods
+    Foto:
+      type: object
+      properties:
+        url:
+          type: string
+        order:
+          type: number
+        cover:
+          type: boolean
+      required:
+        - url
+        - order
+        - cover
+    Politicas:
+      type: object
+      properties:
+        house_rules:
+          type: string
+          nullable: true
+        cancellation:
+          $ref: '#/components/schemas/PoliticaCancelacion'
+        checkin_from:
+          type: string
+        checkout_until:
+          type: string
+        min_nights:
+          type: number
+        max_nights:
+          type: number
+        booking_mode:
+          type: string
+      required:
+        - house_rules
+        - cancellation
+        - checkin_from
+        - checkout_until
+        - min_nights
+        - max_nights
+        - booking_mode
+    Habitacion:
+      type: object
+      properties:
+        name:
+          type: string
+        max_occupancy:
+          type: number
+        bedrooms:
+          type: number
+        beds:
+          type: number
+        bathrooms:
+          type: number
+        quantity:
+          type: number
+        base_price_per_night:
+          type: number
+      required:
+        - name
+        - max_occupancy
+        - bedrooms
+        - beds
+        - bathrooms
+        - quantity
+        - base_price_per_night
+    DetalleAlojamiento:
+      type: object
+      properties:
+        stars:
+          type: number
+          nullable: true
+        price_from:
+          type: number
+          nullable: true
+        cover_photo:
+          type: string
+          nullable: true
+        id:
+          type: number
+        name:
+          type: string
+        type:
+          type: string
+        url:
+          type: string
+        country:
+          type: string
+        city:
+          $ref: '#/components/schemas/CiudadRef'
+        location:
+          $ref: '#/components/schemas/Ubicacion'
+        rating:
+          $ref: '#/components/schemas/Calificacion'
+        currency:
+          type: string
+        description:
+          type: string
+        bundles:
+          type: array
+          items:
+            type: object
+        facilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Facilidad'
+        payment:
+          $ref: '#/components/schemas/MetodosPago'
+        photos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Foto'
+        policies:
+          $ref: '#/components/schemas/Politicas'
+        rooms:
+          type: array
+          items:
+            $ref: '#/components/schemas/Habitacion'
+      required:
+        - stars
+        - price_from
+        - cover_photo
+        - id
+        - name
+        - type
+        - url
+        - country
+        - city
+        - location
+        - rating
+        - currency
+    AccommodationDetailsResponse:
+      type: object
+      properties:
+        next_page:
+          type: string
+          nullable: true
+        request_id:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DetalleAlojamiento'
+      required:
+        - next_page
+        - request_id
+        - data
+    FiltrosCambiosDto:
+      type: object
+      properties:
+        countries:
+          type: array
+          items:
+            type: string
+        cities:
+          type: array
+          items:
+            type: number
+    DetailsChangesRequestDto:
+      type: object
+      properties:
+        last_change:
+          type: string
+        filters:
+          $ref: '#/components/schemas/FiltrosCambiosDto'
+      required:
+        - last_change
+    CambioAlojamiento:
+      type: object
+      properties:
+        id:
+          type: number
+        status:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - status
+        - updated_at
+    ListaCambios:
+      type: object
+      properties:
+        accommodations:
+          type: array
+          items:
+            $ref: '#/components/schemas/CambioAlojamiento'
+      required:
+        - accommodations
+    DatosCambios:
+      type: object
+      properties:
+        from:
+          type: string
+        next:
+          type: string
+        total_changes:
+          type: number
+        changes:
+          $ref: '#/components/schemas/ListaCambios'
+      required:
+        - from
+        - next
+        - total_changes
+        - changes
+    DetailsChangesResponse:
+      type: object
+      properties:
+        request_id:
+          type: string
+        data:
+          $ref: '#/components/schemas/DatosCambios'
+      required:
+        - request_id
+        - data
+    Cadena:
+      type: object
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        brands:
+          type: array
+          items:
+            type: object
+      required:
+        - id
+        - name
+        - brands
+    ChainsResponse:
+      type: object
+      properties:
+        request_id:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Cadena'
+      required:
+        - request_id
+        - data
+    ConstantsRequestDto:
+      type: object
+      properties:
+        constants:
+          description: accommodation_types, facilities, cancellation_policies, provinces, cities, booking_statuses
+          type: array
+          items:
+            type: string
+        languages:
+          description: Solo "es"
+          type: array
+          items:
+            type: string
+    ConstantsResponse:
+      type: object
+      properties:
+        request_id:
+          type: string
+        data:
+          type: object
+          description: Mapa constante -> lista de valores
+      required:
+        - request_id
+        - data
+    ReviewsRequestDto:
+      type: object
+      properties:
+        accommodations:
+          type: array
+          items:
+            type: number
+        page:
+          type: string
+          minLength: 1
+          maxLength: 200
+        rows:
+          type: number
+          minimum: 1
+          maximum: 100
+        languages:
+          description: Solo "es"
+          type: array
+          items:
+            type: string
+      required:
+        - accommodations
+    Resena:
+      type: object
+      properties:
+        comment:
+          type: string
+          nullable: true
+        host_reply:
+          type: string
+          nullable: true
+        id:
+          type: string
+        accommodation_id:
+          type: number
+        score:
+          type: number
+        author:
+          type: string
+        created_at:
+          type: string
+      required:
+        - comment
+        - host_reply
+        - id
+        - accommodation_id
+        - score
+        - author
+        - created_at
+    ReviewsResponse:
+      type: object
+      properties:
+        next_page:
+          type: string
+          nullable: true
+        request_id:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Resena'
+      required:
+        - next_page
+        - request_id
+        - data
+    ReviewsScoresRequestDto:
+      type: object
+      properties:
+        accommodations:
+          type: array
+          items:
+            type: number
+        languages:
+          description: Solo "es"
+          type: array
+          items:
+            type: string
+      required:
+        - accommodations
+    PuntajeAlojamiento:
+      type: object
+      properties:
+        score:
+          type: number
+          nullable: true
+        id:
+          type: number
+        number_of_reviews:
+          type: number
+        distribution:
+          type: object
+          description: Cantidad de reseñas por nota (1-10)
+      required:
+        - score
+        - id
+        - number_of_reviews
+        - distribution
+    ReviewsScoresResponse:
+      type: object
+      properties:
+        request_id:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PuntajeAlojamiento'
+      required:
+        - request_id
+        - data
+    OrderPreviewRequestDto:
+      type: object
+      properties:
+        accommodation_id:
+          type: number
+          minimum: 1
+        product_id:
+          type: string
+          description: Identificador opaco devuelto por /availability
+          minLength: 10
+          maxLength: 200
+        guests:
+          $ref: '#/components/schemas/HuespedesDto'
+      required:
+        - accommodation_id
+        - product_id
+        - guests
+    DatosPreview:
+      type: object
+      properties:
+        order_preview_id:
+          type: string
+        total_price:
+          type: number
+        currency:
+          type: string
+      required:
+        - order_preview_id
+        - total_price
+        - currency
+    OrderPreviewResponse:
+      type: object
+      properties:
+        request_id:
+          type: string
+        data:
+          $ref: '#/components/schemas/DatosPreview'
+      required:
+        - request_id
+        - data
+    DatosClienteDto:
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 80
+        last_name:
+          type: string
+          maxLength: 80
+        email:
+          type: string
+          maxLength: 160
+        document_type:
+          type: string
+          description: >-
+            Extensión opcional (datos de la factura). Sin este campo el comportamiento es el de siempre.
+
+            CONSUMIDOR_FINAL no requiere más datos; CEDULA/PASAPORTE requieren nombres y apellidos; RUC requiere razón
+            social.
+          enum:
+            - CEDULA
+            - RUC
+            - PASAPORTE
+            - CONSUMIDOR_FINAL
+        document_number:
+          type: string
+          description: 'Extensión: número de documento (no se guarda en el perfil del usuario, solo en la factura).'
+        business_name:
+          type: string
+          description: 'Extensión: razón social (obligatoria con RUC).'
+          minLength: 2
+          maxLength: 160
+    OrderCreateRequestDto:
+      type: object
+      properties:
+        order_preview_id:
+          type: string
+        payment_method:
+          type: string
+          description: |-
+            Extensión opcional: CARD (por defecto, tarjeta simulada) o CASH (efectivo al llegar: la reserva queda
+            CONFIRMADA y su pago PENDIENTE hasta que el admin confirma que lo recibió).
+          enum:
+            - CARD
+            - CASH
+        payment_reference:
+          type: string
+          description: >-
+            Referencia del pago simulado: ^PAY-[A-Z0-9]{6,}$ (se valida en el servicio para responder
+            PAYMENT_REFERENCE_INVALID).
+
+            Obligatoria con tarjeta; con efectivo no se usa.
+          maxLength: 60
+        customer_details:
+          $ref: '#/components/schemas/DatosClienteDto'
+      required:
+        - order_preview_id
+        - payment_reference
+        - customer_details
+    UnidadOrden:
+      type: object
+      properties:
+        name:
+          type: string
+        quantity:
+          type: number
+      required:
+        - name
+        - quantity
+    DetalleAlojamientoOrden:
+      type: object
+      properties:
+        id:
+          type: number
+        name:
+          type: string
+        checkin:
+          type: string
+        checkout:
+          type: string
+        guests:
+          type: number
+        units:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnidadOrden'
+        url:
+          type: string
+      required:
+        - id
+        - name
+        - checkin
+        - checkout
+        - guests
+        - units
+        - url
+    OrderDetail:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - CONFIRMED
+            - CANCELLED
+            - PENDING
+        _links:
+          type: object
+          description: 'HATEOAS: self, modify y cancel según el estado'
+          additionalProperties:
+            type: string
+            format: uri
+        order_id:
+          type: string
+        locator:
+          type: string
+          description: Localizador (PNR)
+        accommodation_details:
+          $ref: '#/components/schemas/DetalleAlojamientoOrden'
+        total_price:
+          type: number
+        currency:
+          type: string
+        creation_date:
+          type: string
+      required:
+        - status
+        - _links
+        - order_id
+        - locator
+        - accommodation_details
+        - total_price
+        - currency
+        - creation_date
+    OrderModifyRequestDto:
+      type: object
+      properties:
+        guests:
+          $ref: '#/components/schemas/HuespedesDto'
+        checkin:
+          type: string
+          pattern: FECHA
+        checkout:
+          type: string
+          pattern: FECHA
+    CancelacionResultado:
+      type: object
+      properties:
+        order_id:
+          type: string
+        status:
+          type: string
+        penalty:
+          type: number
+        refund:
+          type: number
+        currency:
+          type: string
+      required:
+        - order_id
+        - status
+        - penalty
+        - refund
+        - currency
+    WebhookSubscription:
+      type: object
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+        events:
+          type: array
+          items:
+            type: string
+        secret:
+          type: string
+          description: Solo se muestra al crear
+      required:
+        - id
+        - url
+        - events
+    WebhookSubscriptionDto:
+      type: object
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+          description: Solo https
+          maxLength: 500
+        events:
+          type: array
+          items:
+            type: string
+            enum:
+              - ORDER_CONFIRMED
+              - ORDER_CANCELLED
+        secret:
+          type: string
+          description: 'Se ignora en la entrada: el servidor genera un secreto de 32 bytes'
+          maxLength: 200
+      required:
+        - id
+        - url
+        - events
+    ActualizarPerfilDto:
+      type: object
+      properties:
+        nombres:
+          type: string
+          minLength: 2
+          maxLength: 80
+          pattern: NOMBRE_PERSONA
+        apellidos:
+          type: string
+          minLength: 2
+          maxLength: 80
+          pattern: NOMBRE_PERSONA
+        telefono:
+          type: string
+          pattern: TELEFONO_EC
+        tipo_documento:
+          type: string
+          enum:
+            - CEDULA
+            - RUC
+            - PASAPORTE
+        numero_documento:
+          type: string
+        razon_social:
+          type: string
+          maxLength: 160
+    CrearResenaDto:
+      type: object
+      properties:
+        nota_global:
+          type: number
+          description: Nota global de 1 a 10
+          minimum: 1
+          maximum: 10
+        comentario:
+          type: string
+          description: |-
+            Comentario opcional (10 a 1000 caracteres). Se valida automáticamente en el servicio:
+            sin un mismo carácter 4+ veces seguidas, sin enlaces, correos ni teléfonos y sin groserías.
+          minLength: 10
+          maxLength: 1000
+      required:
+        - nota_global
+    ImagenDto:
+      type: object
+      properties:
+        url:
+          type: string
+          description: URL https de la imagen
+          maxLength: 500
+        es_portada:
+          type: boolean
+      required:
+        - url
+    CrearAlojamientoDto:
+      type: object
+      properties:
+        tipo_id:
+          type: number
+          minimum: 1
+        ciudad_id:
+          type: number
+          minimum: 1
+        politica_id:
+          type: number
+          minimum: 1
+        nombre:
+          type: string
+          minLength: 3
+          maxLength: 140
+        descripcion:
+          type: string
+          minLength: 20
+          maxLength: 5000
+        direccion:
+          type: string
+          minLength: 5
+          maxLength: 200
+        latitud:
+          type: number
+          description: Latitud dentro de Ecuador (-5 a 2)
+          minimum: -5
+          maximum: 2
+        longitud:
+          type: number
+          description: Longitud dentro de Ecuador (-93 a -75, incluye Galápagos)
+          minimum: -93
+          maximum: -75
+        telefono_contacto:
+          type: string
+          pattern: TELEFONO_EC
+        hora_checkin:
+          type: string
+          pattern: HORA
+        hora_checkout:
+          type: string
+          pattern: HORA
+        noches_min:
+          type: number
+          minimum: 1
+          maximum: 365
+        noches_max:
+          type: number
+          minimum: 1
+          maximum: 365
+        tarifa_limpieza:
+          type: number
+          minimum: 0
+          maximum: 10000
+        modo_reserva:
+          type: string
+          enum:
+            - INSTANTANEA
+        reglas_casa:
+          type: string
+          maxLength: 3000
+        categoria_estrellas:
+          type: number
+          minimum: 1
+          maximum: 5
+        amenidades:
+          description: Ids de amenidades (reemplaza la lista completa)
+          type: array
+          items:
+            type: number
+        imagenes:
+          description: Imágenes (reemplaza la lista completa)
+          type: array
+          items:
+            $ref: '#/components/schemas/ImagenDto'
+      required:
+        - tipo_id
+        - ciudad_id
+        - politica_id
+        - nombre
+        - descripcion
+        - direccion
+        - latitud
+        - longitud
+    ActualizarAlojamientoDto:
+      type: object
+      properties:
+        tipo_id:
+          type: number
+          minimum: 1
+        ciudad_id:
+          type: number
+          minimum: 1
+        politica_id:
+          type: number
+          minimum: 1
+        nombre:
+          type: string
+          minLength: 3
+          maxLength: 140
+        descripcion:
+          type: string
+          minLength: 20
+          maxLength: 5000
+        direccion:
+          type: string
+          minLength: 5
+          maxLength: 200
+        latitud:
+          type: number
+          description: Latitud dentro de Ecuador (-5 a 2)
+          minimum: -5
+          maximum: 2
+        longitud:
+          type: number
+          description: Longitud dentro de Ecuador (-93 a -75, incluye Galápagos)
+          minimum: -93
+          maximum: -75
+        telefono_contacto:
+          type: string
+          pattern: TELEFONO_EC
+        hora_checkin:
+          type: string
+          pattern: HORA
+        hora_checkout:
+          type: string
+          pattern: HORA
+        noches_min:
+          type: number
+          minimum: 1
+          maximum: 365
+        noches_max:
+          type: number
+          minimum: 1
+          maximum: 365
+        tarifa_limpieza:
+          type: number
+          minimum: 0
+          maximum: 10000
+        modo_reserva:
+          type: string
+          enum:
+            - INSTANTANEA
+        reglas_casa:
+          type: string
+          maxLength: 3000
+        categoria_estrellas:
+          type: number
+          minimum: 1
+          maximum: 5
+        amenidades:
+          description: Ids de amenidades (reemplaza la lista completa)
+          type: array
+          items:
+            type: number
+        imagenes:
+          description: Imágenes (reemplaza la lista completa)
+          type: array
+          items:
+            $ref: '#/components/schemas/ImagenDto'
+    UnidadDto:
+      type: object
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+        capacidad_huespedes:
+          type: number
+          minimum: 1
+          maximum: 30
+        num_habitaciones:
+          type: number
+          minimum: 0
+          maximum: 50
+        num_camas:
+          type: number
+          minimum: 1
+          maximum: 100
+        num_banos:
+          type: number
+          minimum: 0
+          maximum: 50
+        cantidad:
+          type: number
+          description: Unidades iguales a la venta (habitaciones de ese tipo)
+          minimum: 1
+          maximum: 500
+        precio_noche_base:
+          type: number
+          minimum: 1
+          maximum: 100000
+        activa:
+          type: boolean
+      required:
+        - nombre
+        - capacidad_huespedes
+        - precio_noche_base
+    ActualizarUnidadDto:
+      type: object
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 100
+        capacidad_huespedes:
+          type: number
+          minimum: 1
+          maximum: 30
+        num_habitaciones:
+          type: number
+          minimum: 0
+          maximum: 50
+        num_camas:
+          type: number
+          minimum: 1
+          maximum: 100
+        num_banos:
+          type: number
+          minimum: 0
+          maximum: 50
+        cantidad:
+          type: number
+          description: Unidades iguales a la venta (habitaciones de ese tipo)
+          minimum: 1
+          maximum: 500
+        precio_noche_base:
+          type: number
+          minimum: 1
+          maximum: 100000
+        activa:
+          type: boolean
+    DiaCalendarioDto:
+      type: object
+      properties:
+        fecha:
+          type: string
+          pattern: FECHA
+        precio_noche:
+          type: number
+          nullable: true
+          description: Precio especial; null = precio base
+          minimum: 1
+        cantidad_a_la_venta:
+          type: number
+          nullable: true
+          description: Unidades a la venta ese día; 0 = cerrado; null = cantidad base
+          minimum: 0
+      required:
+        - fecha
+    CalendarioDto:
+      type: object
+      properties:
+        dias:
+          type: array
+          items:
+            $ref: '#/components/schemas/DiaCalendarioDto'
+      required:
+        - dias
+    ResponderResenaDto:
+      type: object
+      properties:
+        respuesta:
+          type: string
+          minLength: 2
+          maxLength: 2000
+      required:
+        - respuesta
+    EstadoAlojamientoDto:
+      type: object
+      properties:
+        estado:
+          type: string
+          enum:
+            - PUBLICADO
+            - SUSPENDIDO
+      required:
+        - estado
+    EstadoUsuarioDto:
+      type: object
+      properties:
+        activo:
+          type: boolean
+      required:
+        - activo
+    RolUsuarioDto:
+      type: object
+      properties:
+        rol:
+          type: string
+          enum:
+            - ADMIN
+      required:
+        - rol
+    AmenidadDto:
+      type: object
+      properties:
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 60
+        categoria:
+          type: string
+          minLength: 2
+          maxLength: 30
+      required:
+        - nombre
+        - categoria
+    CiudadDto:
+      type: object
+      properties:
+        provincia:
+          type: string
+          minLength: 3
+          maxLength: 40
+        nombre:
+          type: string
+          minLength: 2
+          maxLength: 80
+        latitud:
+          type: number
+          minimum: -5
+          maximum: 2
+        longitud:
+          type: number
+          minimum: -93
+          maximum: -75
+      required:
+        - provincia
+        - nombre
+    ImpuestoDto:
+      type: object
+      properties:
+        nombre:
+          type: string
+          minLength: 3
+          maxLength: 80
+        tipo:
+          type: string
+          enum:
+            - IVA
+            - SERVICIO
+        porcentaje:
+          type: number
+          minimum: 0
+          maximum: 100
+        vigente_desde:
+          type: string
+          pattern: FECHA
+        vigente_hasta:
+          type: string
+          pattern: FECHA
+        estrellas_minimas:
+          type: number
+          minimum: 1
+          maximum: 5
+      required:
+        - nombre
+        - tipo
+        - porcentaje
+        - vigente_desde
+    CerrarImpuestoDto:
+      type: object
+      properties:
+        vigente_hasta:
+          type: string
+          pattern: FECHA
+      required:
+        - vigente_hasta

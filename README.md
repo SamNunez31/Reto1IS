@@ -10,7 +10,7 @@ Plataforma de alojamientos en Ecuador: **backend NestJS** (contrato "GDS Alojami
 |---|---|
 | `backend/` | API NestJS (Swagger en `/api/docs`) |
 | `frontend/` | SPA Angular 19 |
-| `backend/contracts/` | contrato OpenAPI (no editar) |
+| `backend/contracts/` | `alojamientos-openapi.yaml`: contrato OpenAPI oficial del curso (no editar) · `posada-ec-openapi.yaml`: **contrato propio** de Posada EC (todas las rutas, generado de la API real) |
 | `database/` | scripts SQL (ya ejecutados en Supabase) |
 | `docs/` | documento técnico, supuestos, guía de defensa, OpenAPI generado, proto, GraphQL, pendientes |
 
@@ -88,6 +88,7 @@ Frontend: `src/environments/environment.ts` → `apiUrl` con la URL del backend 
 |---|---|---|
 | backend | `npm run build` / `npm run start:prod` | compilar / ejecutar |
 | backend | `npm run docs:openapi` | genera `docs/openapi.json` (no necesita BD) |
+| backend | `npm run contract:export` | exporta el contrato propio a `backend/contracts/posada-ec-openapi.yaml` (correr antes `docs:openapi`) |
 | backend | `npm run contract:check` | compara rutas/métodos del YAML con el OpenAPI generado; falla si falta alguna |
 | frontend | `npm start` / `npm run build` / `npm test` | desarrollo / producción / pruebas |
 

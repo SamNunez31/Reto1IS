@@ -1832,6 +1832,45 @@
         ]
       }
     },
+    "/api/v1/admin/users/{id}/role": {
+      "patch": {
+        "operationId": "AdminController_rolUsuario",
+        "summary": "Asignar el rol de administrador a otro usuario (el usuario debe volver a iniciar sesión)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RolUsuarioDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Administración"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/admin/catalogs": {
       "get": {
         "operationId": "AdminController_catalogos",
@@ -4244,6 +4283,20 @@
         },
         "required": [
           "activo"
+        ]
+      },
+      "RolUsuarioDto": {
+        "type": "object",
+        "properties": {
+          "rol": {
+            "type": "string",
+            "enum": [
+              "ADMIN"
+            ]
+          }
+        },
+        "required": [
+          "rol"
         ]
       },
       "AmenidadDto": {
