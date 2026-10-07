@@ -23,16 +23,16 @@ TRUNCATE pg_temp.extra_foto;
 INSERT INTO pg_temp.extra_foto (nombre, orden, url)
 SELECT f.nombre, f.orden, 'https://images.unsplash.com/photo-' || f.foto || '?w=800&q=75'
 FROM (VALUES
-  ('Hotel Jardín La Floresta',0,'1542314831-068cd1dbfeeb'),('Hotel Jardín La Floresta',1,'1590490360182-c33d57733427'),('Hotel Jardín La Floresta',2,'1702014859878-5d4743176d28'),
-  ('Departamento Puerto Santa Ana',0,'1554995207-c18c203602cb'),('Departamento Puerto Santa Ana',1,'1665249934445-1de680641f50'),('Departamento Puerto Santa Ana',2,'1654506012740-09321c969dc2'),
-  ('Casa Tomebamba',0,'1570129477492-45c003edd2be'),('Casa Tomebamba',1,'1773137159005-f0ecd1201f01'),('Casa Tomebamba',2,'1721369483526-62f48a00b949'),
-  ('Cabañas Río Pastaza',0,'1587061949409-02df41d5e562'),('Cabañas Río Pastaza',1,'1767334573989-ffa2720523b2'),('Cabañas Río Pastaza',2,'1777913319909-1d27d36db93e'),
-  ('Hostal Ficoa Ambato',0,'1505693416388-ac5ce068fe85'),('Hostal Ficoa Ambato',1,'1631049307264-da0ec9d70304'),('Hostal Ficoa Ambato',2,'1725962479542-1be0a6b0d444'),
-  ('Hotel Chimborazo Centro',0,'1578683010236-d716f9a3f461'),('Hotel Chimborazo Centro',1,'1767324672977-3b051d4cdb88'),('Hotel Chimborazo Centro',2,'1542314831-068cd1dbfeeb'),
-  ('Departamento Jipiro Loja',0,'1522708323590-d24dbb6b0267'),('Departamento Jipiro Loja',1,'1493809842364-78817add7ffb'),('Departamento Jipiro Loja',2,'1502672260266-1c1ef2d93688'),
-  ('Cabañas Amazonía Tena',0,'1566073771259-6a8506099945'),('Cabañas Amazonía Tena',1,'1449158743715-0a90ebb6d2d8'),('Cabañas Amazonía Tena',2,'1587061949409-02df41d5e562'),
-  ('Hostal Surf Montañita',0,'1555854877-bab0e564b8d5'),('Hostal Surf Montañita',1,'1520277739336-7bf67edfa768'),('Hostal Surf Montañita',2,'1595576508898-0ad5c879a061'),
-  ('Casa Yahuarcocha',0,'1568605114967-8130f3a36994'),('Casa Yahuarcocha',1,'1582719478250-c89cae4dc85b'),('Casa Yahuarcocha',2,'1564013799919-ab600027ffc6')
+  ('Hotel Jardín La Floresta',0,'1591088398332-8a7791972843'),('Hotel Jardín La Floresta',1,'1540518614846-7eded433c457'),('Hotel Jardín La Floresta',2,'1618773928121-c32242e63f39'),
+  ('Departamento Puerto Santa Ana',0,'1554995207-c18c203602cb'),('Departamento Puerto Santa Ana',1,'1568495248636-6432b97bd949'),('Departamento Puerto Santa Ana',2,'1565183997392-2f6f122e5912'),
+  ('Casa Tomebamba',0,'1416331108676-a22ccb276e35'),('Casa Tomebamba',1,'1618221195710-dd6b41faaea6'),('Casa Tomebamba',2,'1507089947368-19c1da9775ae'),
+  ('Cabañas Río Pastaza',0,'1590725140246-20acdee442be'),('Cabañas Río Pastaza',1,'1600210492493-0946911123ea'),('Cabañas Río Pastaza',2,'1571508601891-ca5e7a713859'),
+  ('Hostal Ficoa Ambato',0,'1505693416388-ac5ce068fe85'),('Hostal Ficoa Ambato',1,'1505692952047-1a78307da8f2'),('Hostal Ficoa Ambato',2,'1616594039964-ae9021a400a0'),
+  ('Hotel Chimborazo Centro',0,'1578683010236-d716f9a3f461'),('Hotel Chimborazo Centro',1,'1631049552057-403cdb8f0658'),('Hotel Chimborazo Centro',2,'1617098900591-3f90928e8c54'),
+  ('Departamento Jipiro Loja',0,'1522708323590-d24dbb6b0267'),('Departamento Jipiro Loja',1,'1484101403633-562f891dc89a'),('Departamento Jipiro Loja',2,'1549638441-b787d2e11f14'),
+  ('Cabañas Amazonía Tena',0,'1774280954999-9758f11f3d41'),('Cabañas Amazonía Tena',1,'1507652313519-d4e9174996dd'),('Cabañas Amazonía Tena',2,'1611892440504-42a792e24d32'),
+  ('Hostal Surf Montañita',0,'1555854877-bab0e564b8d5'),('Hostal Surf Montañita',1,'1520483601560-389dff434fdf'),('Hostal Surf Montañita',2,'1595526114035-0d45ed16cfbf'),
+  ('Casa Yahuarcocha',0,'1568605114967-8130f3a36994'),('Casa Yahuarcocha',1,'1616486338812-3dadae4b4ace'),('Casa Yahuarcocha',2,'1601760562234-9814eea6663a')
 ) AS f(nombre, orden, foto);
 
 -- Mismo patrón que pg_temp.demo_aloj de 02, con descripción y dirección propias; no hace nada si el nombre ya existe
