@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, input, OnInit, signal } from '@angular/core';
 import { ObservabilidadService, SnapshotObs } from '../../core/services/observabilidad.service';
 import { ConfirmarService } from '../../shared/confirmar';
 
@@ -7,19 +7,23 @@ const NOMBRE_TIPO: Record<string, string> = {
   recurso: 'Recurso no cargado', clic: 'Clic', visibilidad: 'Visibilidad', api: 'API', demo: 'Demostración',
 };
 
-/** Pestaña "Observabilidad" del panel de admin: datos locales de ESTE navegador (no se envían a ningún servidor). */
+/**
+ * Observabilidad local: pestaña del panel de admin y página pública /observabilidad.
+ * Muestra datos de ESTE navegador (no se envían a ningún servidor).
+ */
 @Component({
   selector: 'app-observabilidad',
   template: `
     <section aria-labelledby="obs-titulo">
-      <h2 id="obs-titulo">Observabilidad del navegador</h2>
+      <!-- Como página propia (/observabilidad) es el h1; dentro del panel admin va bajo su h1 "Administración" -->
+      @if (pagina()) { <h1 id="obs-titulo">Observabilidad del navegador</h1> } @else { <h2 id="obs-titulo">Observabilidad del navegador</h2> }
       <p class="ayuda">Estos datos son locales de este navegador: se guardan en localStorage y no se envían a ningún servidor.</p>
 
       <div class="acciones obs-acciones">
         <button class="btn" type="button" (click)="actualizar(true)">Actualizar</button>
         <button class="btn" type="button" (click)="demo()">Generar evento de demostración</button>
         <button class="btn" type="button" (click)="descargar()">Descargar snapshot JSON</button>
-        <button class="btn btn-peligro" type="button" (click)="limpiar()">Limpiar datos</button>
+        <button class="btn btn-peligro" type="button" (click)="limpiar()">Limpiar almacenamiento</button>
       </div>
       <p class="sr-only" role="status" aria-live="polite">{{ aviso() }}</p>
       @if (aviso()) { <p class="alerta alerta-ok" aria-hidden="true">{{ aviso() }}</p> }
@@ -38,8 +42,8 @@ const NOMBRE_TIPO: Record<string, string> = {
           <section class="tarjeta" aria-labelledby="obs-entorno">
             <h3 id="obs-entorno">Entorno</h3>
             <dl class="obs-dl">
-              <dt>Ventana</dt><dd>{{ s.entorno.viewport ? s.entorno.viewport.ancho + ' × ' + s.entorno.viewport.alto + ' px (escala ' + s.entorno.viewport.dpr + ')' : 'no disponible' }}</dd>
-              <dt>Conexión</dt><dd>{{ s.entorno.conexion ? (s.entorno.conexion.tipo ?? '—') + (s.entorno.conexion.rtt_ms !== null ? ' · RTT ' + s.entorno.conexion.rtt_ms + ' ms' : '') : 'no informada por el navegador' }}</dd>
+              <dt>Ventana</dt><dd>{{ s.entorno.viewport ? s.entorno.viewport.ancho + ' × ' + s.entorno.viewport.alto + ' px (escala ' + s.entorno.viewport.dpr + ')' : 'No disponible' }}</dd>
+              <dt>Conexión</dt><dd>{{ s.entorno.conexion ? (s.entorno.conexion.tipo ?? '—') + (s.entorno.conexion.rtt_ms !== null ? ' · RTT ' + s.entorno.conexion.rtt_ms + ' ms' : '') : 'No disponible' }}</dd>
               <dt>Primer byte / DOM listo / FCP</dt><dd>{{ ms(s.metricas.ttfb_ms) }} / {{ ms(s.metricas.dom_listo_ms) }} / {{ ms(s.metricas.fcp_ms) }}</dd>
               <dt>Eventos guardados</dt><dd>{{ s.resumen.eventos }} de {{ s.limite_eventos }} (los más antiguos se descartan)</dd>
             </dl>
@@ -100,6 +104,8 @@ const NOMBRE_TIPO: Record<string, string> = {
 export class ObservabilidadComponent implements OnInit {
   private readonly obs = inject(ObservabilidadService);
   private readonly confirmar = inject(ConfirmarService);
+  /** true en la ruta /observabilidad (data: { pagina: true }): el título es el h1 de la página. */
+  readonly pagina = input(false);
   readonly s = signal<SnapshotObs | null>(null);
   readonly ultimos = signal<SnapshotObs['eventos']>([]);
   readonly aviso = signal('');
@@ -123,15 +129,15 @@ export class ObservabilidadComponent implements OnInit {
 
   async limpiar(): Promise<void> {
     const si = await this.confirmar.pedir({
-      titulo: '¿Limpiar los datos de observabilidad?',
-      mensaje: 'Se borrarán todos los eventos y métricas guardados en este navegador. No se puede deshacer.',
-      confirmar: 'Limpiar datos',
+      titulo: '¿Limpiar el almacenamiento de observabilidad?',
+      mensaje: 'Se borrarán todos los eventos y métricas guardados en este navegador (claves posadaec-observability). No se puede deshacer.',
+      confirmar: 'Limpiar almacenamiento',
       tono: 'peligro',
     });
     if (!si) return;
     this.obs.limpiar();
     this.actualizar(false);
-    this.avisar('Datos de observabilidad eliminados.');
+    this.avisar('Almacenamiento de observabilidad limpiado.');
   }
 
   descargar(): void {
@@ -152,8 +158,9 @@ export class ObservabilidadComponent implements OnInit {
   apis(s: SnapshotObs): { nombre: string; ok: boolean }[] {
     return Object.entries(s.entorno.soporte).map(([nombre, ok]) => ({ nombre, ok }));
   }
+  /** Milisegundos legibles; "No disponible" si el navegador no da esa métrica (API ausente o aún sin medir). */
   ms(v: number | null): string {
-    return v === null || v === undefined ? '—' : `${v.toLocaleString('es-EC')} ms`;
+    return v === null || v === undefined ? 'No disponible' : `${v.toLocaleString('es-EC')} ms`;
   }
   hora(t: string): string {
     return new Date(t).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
