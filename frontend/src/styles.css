@@ -104,7 +104,6 @@ h3 { font-size: 1rem; margin: .8rem 0 .4rem; }
 .btn-salir:hover { background: var(--c-error-fondo); border-color: color-mix(in srgb, var(--c-peligro) 35%, transparent); }
 .btn-salir:focus-visible { outline: 3px solid var(--c-peligro); outline-offset: 2px; }
 .nav-usuario { gap: .35rem; }
-span.nav-usuario { color: var(--gris-700); font-weight: 600; font-size: .95rem; }
 .icono-usuario { flex: none; }
 .politica-resumen { margin-top: .8rem; border-top: 1px solid var(--c-borde); padding-top: .6rem; }
 .politica-resumen h3 { font-size: .95rem; margin: 0 0 .2rem; }
